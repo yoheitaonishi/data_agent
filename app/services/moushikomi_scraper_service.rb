@@ -164,29 +164,20 @@ class MoushikomiScraperService
   end
 
   def scrape_current_page
-    # Try multiple table selectors
-    rows = []
-    table_selectors = [
-      "table.itandi-bb-ui__Table tbody tr",
-      "table tbody tr",
-      ".itandi-bb-ui__Table tbody tr"
-    ]
+    # Wait for table to fully load
+    @wait.until { @driver.find_element(css: "tbody") }
+    sleep 2 # Extra wait for dynamic content
 
-    table_selectors.each do |selector|
-      begin
-        rows = @driver.find_elements(css: selector)
-        break if rows.any?
-      rescue Selenium::WebDriver::Error::NoSuchElementError
-        next
-      end
-    end
+    # Get tbody element and then its rows
+    tbody = @driver.find_element(css: "tbody")
+    rows = tbody.find_elements(css: "tr")
 
     page_data = []
 
-    Rails.logger.info "Found #{rows.length} rows on current page"
+    Rails.logger.info "Found #{rows.length} data rows in tbody"
 
     if rows.empty?
-      Rails.logger.error "No rows found. Page source:"
+      Rails.logger.error "No rows found in tbody. Page source:"
       Rails.logger.error @driver.page_source[0..2000]
       return page_data
     end
@@ -198,23 +189,30 @@ class MoushikomiScraperService
         # Find the property link in the row - try multiple selectors
         link_element = nil
         link_selectors = [
+          "a[href*='/entry_heads/']",  # Most reliable - matches href pattern
           "a.itandi-bb-ui__TextLink--Primary",
           "a.itandi-bb-ui__TextLink",
-          "a[href*='/entry_heads/']",
+          "td:nth-child(3) a",  # Property column is 3rd
           "td a"
         ]
 
         link_selectors.each do |selector|
           begin
+            Rails.logger.debug "Trying selector: #{selector}"
             link_element = row.find_element(css: selector)
-            break if link_element
+            if link_element
+              Rails.logger.info "Link found with selector: #{selector}"
+              break
+            end
           rescue Selenium::WebDriver::Error::NoSuchElementError
+            Rails.logger.debug "Selector '#{selector}' not found"
             next
           end
         end
 
         unless link_element
           Rails.logger.error "Could not find link in row #{index + 1}"
+          Rails.logger.error "Row HTML: #{row.attribute('innerHTML')[0..500]}"
           next
         end
 

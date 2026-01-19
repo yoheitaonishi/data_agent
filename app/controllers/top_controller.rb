@@ -1,5 +1,17 @@
 class TopController < ApplicationController
   def index
+    @initial_data = ImportHistory.order(executed_at: :desc).map do |history|
+      {
+        id: history.job_id,
+        date: history.executed_at.strftime('%Y/%m/%d %H:%M:%S'),
+        source: history.source_system,
+        destination: history.destination_system,
+        status: history.status,
+        count: history.record_count,
+        requiredAction: history.action_required,
+        errorDetail: history.error_message
+      }
+    end
   end
 
   def dev

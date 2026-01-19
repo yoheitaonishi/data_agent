@@ -356,35 +356,6 @@ class MoushikomiScraperService
     # 申込者編集権限
     data[:applicant_edit_permission] = extract_labeled_value("申込者の編集権限")
 
-    # 部屋ステータス
-    data[:room_status] = extract_labeled_value("部屋ステータス")
-
-    # 建物構造
-    data[:building_structure] = extract_labeled_value("建物構造")
-
-    # 階数
-    data[:floor] = extract_labeled_value("階")
-
-    # バルコニー面積
-    data[:balcony_area] = extract_numeric_value(extract_labeled_value("バルコニー面積"))
-
-    # 駐車場料金
-    data[:parking_fee] = extract_money_value(extract_labeled_value("駐車場料金"))
-
-    # 契約開始日
-    contract_start = extract_labeled_value("契約開始日")
-    data[:contract_start_date] = Date.parse(contract_start) rescue nil if contract_start
-
-    # 入居予定日
-    move_in = extract_labeled_value("入居予定日")
-    data[:move_in_date] = Date.parse(move_in) rescue nil if move_in
-
-    # 契約期間
-    data[:contract_period] = extract_labeled_value("契約期間")
-
-    # 更新料
-    data[:renewal_fee] = extract_money_value(extract_labeled_value("更新料"))
-
     # 申込方法
     data[:application_method] = extract_labeled_value("申込方法")
 

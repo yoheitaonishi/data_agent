@@ -135,22 +135,6 @@
                                             <div class="text-xs text-gray-500 mb-1">面積</div>
                                             <div class="text-sm font-medium text-gray-900"><%= entry.area ? "#{entry.area} ㎡" : '-' %></div>
                                         </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">バルコニー面積</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.balcony_area ? "#{entry.balcony_area} ㎡" : '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">階数</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.floor || '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">建物構造</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.building_structure || '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">部屋状況</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.room_status || '-' %></div>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -180,18 +164,6 @@
                                         <div>
                                             <div class="text-xs text-gray-500 mb-1">保証金</div>
                                             <div class="text-sm font-medium text-gray-900"><%= entry.guarantee_deposit ? "#{entry.guarantee_deposit.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse} 円" : '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">駐車場代</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.parking_fee ? "#{entry.parking_fee.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse} 円" : '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">その他費用</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.other_fees || '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">更新料</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.renewal_fee || '-' %></div>
                                         </div>
                                     </div>
                                 </div>
@@ -276,22 +248,6 @@
                                         <div>
                                             <div class="text-xs text-gray-500 mb-1">契約方法</div>
                                             <div class="text-sm font-medium text-gray-900"><%= entry.contract_method || '-' %></div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">契約開始日</div>
-                                            <div class="text-sm font-medium text-gray-900">
-                                                <%= entry.contract_start_date ? entry.contract_start_date.strftime('%Y/%m/%d') : '-' %>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">入居日</div>
-                                            <div class="text-sm font-medium text-gray-900">
-                                                <%= entry.move_in_date ? entry.move_in_date.strftime('%Y/%m/%d') : '-' %>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-500 mb-1">契約期間</div>
-                                            <div class="text-sm font-medium text-gray-900"><%= entry.contract_period || '-' %></div>
                                         </div>
                                         <div>
                                             <div class="text-xs text-gray-500 mb-1">保証会社</div>

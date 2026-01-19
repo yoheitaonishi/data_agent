@@ -1,12 +1,21 @@
 class AgenticJob < ApplicationRecord
   has_many :contract_entries, dependent: :nullify
 
+  # System names
+  SOURCE_SYSTEM_ITANDI = "イタンジ"
+  DESTINATION_SYSTEM_OBIC7 = "OBIC7"
+
+  # Status constants
+  STATUS_PROCESSING = "処理中"
+  STATUS_COMPLETED = "完了"
+  STATUS_FAILED = "失敗"
+
   # Execute contract data scraping
   def self.execute_contract_scraping
     job = create!(
-      source_system: "申し込み受付くん",
-      destination_system: "DataAgent DB",
-      status: "processing",
+      source_system: SOURCE_SYSTEM_ITANDI,
+      destination_system: DESTINATION_SYSTEM_OBIC7,
+      status: STATUS_PROCESSING,
       executed_at: Time.current,
       action_required: false
     )
@@ -17,13 +26,13 @@ class AgenticJob < ApplicationRecord
 
       if result[:success]
         job.update!(
-          status: "completed",
+          status: STATUS_COMPLETED,
           record_count: result[:count],
           action_required: false
         )
       else
         job.update!(
-          status: "failed",
+          status: STATUS_FAILED,
           error_message: result[:error],
           action_required: true
         )
@@ -32,7 +41,7 @@ class AgenticJob < ApplicationRecord
       job
     rescue => e
       job.update!(
-        status: "failed",
+        status: STATUS_FAILED,
         error_message: e.message,
         action_required: true
       )

@@ -1,0 +1,355 @@
+class MoushikomiScraperService
+  class ScrapingError < StandardError; end
+
+  def initialize
+    @driver = nil
+    @wait = nil
+  end
+
+  def scrape_contract_data
+    setup_driver
+    login
+    navigate_to_contract_page
+    scrape_all_pages
+  ensure
+    cleanup_driver
+  end
+
+  private
+
+  def setup_driver
+    options = Selenium::WebDriver::Chrome::Options.new
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    # options.add_argument("--headless") # デバッグ用に一時的に無効化
+
+    @driver = Selenium::WebDriver.for :chrome, options: options
+    @wait = Selenium::WebDriver::Wait.new(timeout: 10)
+  end
+
+  def cleanup_driver
+    @driver&.quit
+  end
+
+  def login
+    # Step 1: Main login
+    Rails.logger.info "Navigating to login page: #{ENV.fetch('MOUSHIKOMI_LOGIN_URL')}"
+    @driver.get(ENV.fetch("MOUSHIKOMI_LOGIN_URL"))
+
+    begin
+      Rails.logger.info "Looking for email field..."
+      email_field = @wait.until { @driver.find_element(name: "email") }
+      Rails.logger.info "Email field found, entering email..."
+      email_field.send_keys(ENV.fetch("MOUSHIKOMI_EMAIL"))
+
+      Rails.logger.info "Looking for password field..."
+      password_field = @driver.find_element(name: "password")
+      Rails.logger.info "Password field found, entering password..."
+      password_field.send_keys(ENV.fetch("MOUSHIKOMI_PASSWORD"))
+
+      Rails.logger.info "Submitting login form..."
+      # Try to submit the form directly instead of clicking button
+      begin
+        form = @driver.find_element(css: "form")
+        form.submit
+        Rails.logger.info "Form submitted successfully"
+      rescue => e
+        Rails.logger.warn "Form submit failed, trying button click: #{e.message}"
+        submit_button = find_submit_button
+        submit_button.click
+        Rails.logger.info "Submit button clicked successfully"
+      end
+
+      # Wait for login to complete
+      Rails.logger.info "Waiting for login to complete..."
+      @wait.until { @driver.current_url != ENV.fetch("MOUSHIKOMI_LOGIN_URL") }
+      Rails.logger.info "Main login completed. Current URL: #{@driver.current_url}"
+
+    rescue => e
+      Rails.logger.error "Error during main login: #{e.message}"
+      Rails.logger.error "Current URL: #{@driver.current_url}"
+      Rails.logger.error "Page source: #{@driver.page_source[0..500]}" # First 500 chars
+      raise
+    end
+
+    # Step 2: Staff login (from table)
+    begin
+      Rails.logger.info "Looking for staff in table: #{ENV.fetch('MOUSHIKOMI_STAFF_NAME')}"
+
+      # Wait for table to load
+      @wait.until { @driver.find_element(css: "table.jambo_table") }
+
+      # Find the row containing the staff name
+      staff_name = ENV.fetch('MOUSHIKOMI_STAFF_NAME')
+      staff_row = @wait.until do
+        @driver.find_element(xpath: "//td[contains(text(), '#{staff_name}')]/parent::tr")
+      end
+      Rails.logger.info "Staff row found for: #{staff_name}"
+
+      # Check if this staff requires password (has password input field)
+      password_fields = staff_row.find_elements(css: "input[type='password']")
+
+      if password_fields.any?
+        Rails.logger.info "Password field found, entering password..."
+        password_field = password_fields.first
+        password_field.send_keys(ENV.fetch("MOUSHIKOMI_STAFF_PASSWORD"))
+      else
+        Rails.logger.info "No password required for this staff"
+      end
+
+      # Find and click the submit button in the same row
+      Rails.logger.info "Looking for submit button in staff row..."
+      submit_button = staff_row.find_element(css: "button[type='submit']")
+      Rails.logger.info "Submit button found, clicking..."
+      submit_button.click
+
+      # Wait for staff login to complete
+      Rails.logger.info "Waiting for staff login to complete..."
+      @wait.until { @driver.current_url != "https://moushikomi-uketsukekun.com/accounts" }
+      Rails.logger.info "Staff login completed. Current URL: #{@driver.current_url}"
+
+    rescue => e
+      Rails.logger.error "Error during staff login: #{e.message}"
+      Rails.logger.error "Current URL: #{@driver.current_url}"
+      Rails.logger.error "Page source: #{@driver.page_source[0..1000]}" # First 1000 chars
+      raise
+    end
+  end
+
+  def navigate_to_contract_page
+    Rails.logger.info "Navigating to contract page..."
+    @driver.get(ENV.fetch("MOUSHIKOMI_CONTRACT_URL"))
+    @wait.until { @driver.find_element(css: "table.itandi-bb-ui__Table") }
+    Rails.logger.info "Contract page loaded"
+  end
+
+  def scrape_all_pages
+    all_data = []
+    page_number = 1
+
+    loop do
+      Rails.logger.info "Scraping page #{page_number}..."
+
+      # Scrape current page
+      page_data = scrape_current_page
+      all_data.concat(page_data)
+
+      # Check if there's a next page
+      break unless has_next_page?
+
+      # Click next page
+      click_next_page
+      page_number += 1
+
+      # Wait for new page to load
+      @wait.until { @driver.find_element(css: "table") }
+    end
+
+    {
+      success: true,
+      count: all_data.length,
+      data: all_data,
+      pages_scraped: page_number
+    }
+  rescue => e
+    Rails.logger.error "Scraping error: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+
+    {
+      success: false,
+      error: e.message,
+      data: all_data,
+      count: all_data.length
+    }
+  end
+
+  def scrape_current_page
+    # Try multiple table selectors
+    rows = []
+    table_selectors = [
+      "table.itandi-bb-ui__Table tbody tr",
+      "table tbody tr",
+      ".itandi-bb-ui__Table tbody tr"
+    ]
+
+    table_selectors.each do |selector|
+      begin
+        rows = @driver.find_elements(css: selector)
+        break if rows.any?
+      rescue Selenium::WebDriver::Error::NoSuchElementError
+        next
+      end
+    end
+
+    page_data = []
+
+    Rails.logger.info "Found #{rows.length} rows on current page"
+
+    if rows.empty?
+      Rails.logger.error "No rows found. Page source:"
+      Rails.logger.error @driver.page_source[0..2000]
+      return page_data
+    end
+
+    rows.each_with_index do |row, index|
+      begin
+        Rails.logger.info "Processing row #{index + 1}/#{rows.length}..."
+
+        # Find the property link in the row - try multiple selectors
+        link_element = nil
+        link_selectors = [
+          "a.itandi-bb-ui__TextLink--Primary",
+          "a.itandi-bb-ui__TextLink",
+          "a[href*='/entry_heads/']",
+          "td a"
+        ]
+
+        link_selectors.each do |selector|
+          begin
+            link_element = row.find_element(css: selector)
+            break if link_element
+          rescue Selenium::WebDriver::Error::NoSuchElementError
+            next
+          end
+        end
+
+        unless link_element
+          Rails.logger.error "Could not find link in row #{index + 1}"
+          next
+        end
+
+        property_name = link_element.text
+        detail_url = link_element.attribute("href")
+
+        Rails.logger.info "Found property: #{property_name}, URL: #{detail_url}"
+
+        # Navigate to detail page
+        full_url = detail_url.start_with?("http") ? detail_url : "https://moushikomi-uketsukekun.com#{detail_url}"
+        @driver.get(full_url)
+
+        # Wait for detail page to load
+        @wait.until { @driver.find_element(css: "body") }
+        sleep 1 # Give time for content to load
+
+        # Extract applicant name from detail page
+        applicant_name = extract_applicant_name
+
+        Rails.logger.info "Extracted applicant name: #{applicant_name}"
+
+        # Go back to list page
+        @driver.navigate.back
+        @wait.until { @driver.find_element(css: "table.itandi-bb-ui__Table") }
+        sleep 1 # Wait for page to stabilize
+
+        # Re-find rows after navigation
+        rows = @driver.find_elements(css: "table.itandi-bb-ui__Table tbody tr")
+
+        page_data << {
+          property_name: property_name,
+          applicant_name: applicant_name,
+          detail_url: full_url
+        }
+
+      rescue => e
+        Rails.logger.error "Error processing row #{index + 1}: #{e.message}"
+        Rails.logger.error e.backtrace.join("\n")
+
+        # Try to go back to list page if we're on detail page
+        begin
+          @driver.navigate.back
+          @wait.until { @driver.find_element(css: "table.itandi-bb-ui__Table") }
+          rows = @driver.find_elements(css: "table.itandi-bb-ui__Table tbody tr")
+        rescue
+          # Continue with next row
+        end
+      end
+    end
+
+    page_data
+  end
+
+  def extract_applicant_name
+    # Try multiple selectors to find applicant name
+    selectors = [
+      { type: :xpath, value: "//*[contains(text(), '申込者')]/following-sibling::*" },
+      { type: :xpath, value: "//*[contains(text(), '申込者名')]/following-sibling::*" },
+      { type: :css, value: ".applicant-name" },
+      { type: :xpath, value: "//span[contains(text(), '申込者')]/ancestor::div/following-sibling::div" }
+    ]
+
+    selectors.each do |selector|
+      begin
+        element = @driver.find_element(selector[:type], selector[:value])
+        name = element.text.strip
+        return name unless name.empty?
+      rescue Selenium::WebDriver::Error::NoSuchElementError
+        next
+      end
+    end
+
+    # If no selector works, log page source for debugging
+    Rails.logger.warn "Could not find applicant name. Page source sample:"
+    Rails.logger.warn @driver.page_source[0..1000]
+
+    "名前取得失敗"
+  end
+
+  def has_next_page?
+    # Look for pagination elements - adjust selector based on actual HTML
+    # Common patterns:
+    # - Link with text "次へ" or ">"
+    # - Button with class "next" or "pagination-next"
+    # - Disabled state on "next" button when on last page
+
+    begin
+      next_button = @driver.find_element(css: "a.next:not(.disabled)")
+      !next_button.nil?
+    rescue Selenium::WebDriver::Error::NoSuchElementError
+      # Try alternative selectors
+      begin
+        next_link = @driver.find_element(xpath: "//a[contains(text(), '次へ') or contains(text(), '>')]")
+        !next_link.nil?
+      rescue Selenium::WebDriver::Error::NoSuchElementError
+        false
+      end
+    end
+  end
+
+  def click_next_page
+    begin
+      next_button = @driver.find_element(css: "a.next:not(.disabled)")
+      next_button.click
+    rescue Selenium::WebDriver::Error::NoSuchElementError
+      next_link = @driver.find_element(xpath: "//a[contains(text(), '次へ') or contains(text(), '>')]")
+      next_link.click
+    end
+  end
+
+  def find_submit_button
+    # Try multiple selectors for submit button
+    selectors = [
+      { type: :css, value: "button[type='submit']" },
+      { type: :css, value: "input[type='submit']" },
+      { type: :css, value: "button.btn-primary" },
+      { type: :css, value: "button.submit" },
+      { type: :css, value: "input.btn-primary" },
+      { type: :xpath, value: "//button[contains(text(), 'ログイン')]" },
+      { type: :xpath, value: "//input[@value='ログイン']" },
+      { type: :xpath, value: "//button[contains(@class, 'login')]" },
+      { type: :css, value: "form button" },
+      { type: :css, value: "form input[type='button']" }
+    ]
+
+    selectors.each do |selector|
+      begin
+        element = @driver.find_element(selector[:type], selector[:value])
+        Rails.logger.info "Found submit button with #{selector[:type]}: #{selector[:value]}"
+        return element if element.displayed? && element.enabled?
+      rescue Selenium::WebDriver::Error::NoSuchElementError
+        next
+      end
+    end
+
+    raise Selenium::WebDriver::Error::NoSuchElementError, "Could not find submit button with any known selector"
+  end
+end

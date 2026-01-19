@@ -1,0 +1,46 @@
+<h1>契約準備中データ取得</h1>
+
+<div class="status">
+  <p><strong>ステータス:</strong> <%= @status %></p>
+</div>
+
+<% if @contract_data && @contract_data.any? %>
+  <div class="data-summary">
+    <p><strong>取得件数:</strong> <%= @contract_data.length %>件</p>
+  </div>
+
+  <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+    <thead>
+      <tr style="background-color: #f0f0f0;">
+        <th style="width: 50px;">No.</th>
+        <th style="width: 300px;">物件名</th>
+        <th style="width: 200px;">申込者名</th>
+        <th>詳細URL</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @contract_data.each_with_index do |data, index| %>
+        <tr>
+          <td style="text-align: center;"><%= index + 1 %></td>
+          <td><%= data[:property_name] || 'N/A' %></td>
+          <td><%= data[:applicant_name] || 'N/A' %></td>
+          <td>
+            <% if data[:detail_url] %>
+              <a href="<%= data[:detail_url] %>" target="_blank" style="color: #007bff; text-decoration: underline;">
+                <%= data[:detail_url] %>
+              </a>
+            <% else %>
+              N/A
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p style="margin-top: 20px;">データがありません。</p>
+<% end %>
+
+<div style="margin-top: 30px;">
+  <%= link_to "トップに戻る", root_path, style: "padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;" %>
+</div>

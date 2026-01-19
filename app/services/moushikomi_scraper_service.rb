@@ -7,9 +7,11 @@ class MoushikomiScraperService
   def initialize
     @driver = nil
     @wait = nil
+    @agentic_job_id = nil
   end
 
-  def scrape_contract_data
+  def scrape_contract_data(agentic_job_id: nil)
+    @agentic_job_id = agentic_job_id
     setup_driver
     login
     navigate_to_contract_page
@@ -246,6 +248,7 @@ class MoushikomiScraperService
           contract_entry.assign_attributes(
             property_name: property_name,
             detail_url: full_url,
+            agentic_job_id: @agentic_job_id,
             **detail_data
           )
           contract_entry.save!

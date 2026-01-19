@@ -1,5 +1,6 @@
 Rails.application.routes.draw do
   resources :agentic_jobs, only: [:show]
+  post "agentic_jobs/execute", to: "agentic_jobs#execute", as: :execute_agentic_job
   get "top/dev"
   get "top/contract_data"
   get "top/saved_contract_data", as: :saved_contract_data

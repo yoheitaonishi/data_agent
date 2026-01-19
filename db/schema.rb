@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_19_075711) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_19_081204) do
   create_table "agentic_jobs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.boolean "action_required"
     t.datetime "created_at", null: false
@@ -26,6 +26,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_075711) do
   create_table "contract_entries", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.text "additional_data"
     t.string "address"
+    t.integer "agentic_job_id"
     t.string "applicant_edit_permission"
     t.string "applicant_email"
     t.string "applicant_name"
@@ -66,6 +67,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_075711) do
     t.string "room_id"
     t.string "room_status"
     t.datetime "updated_at", null: false
+    t.index ["agentic_job_id"], name: "index_contract_entries_on_agentic_job_id"
     t.index ["applicant_name"], name: "index_contract_entries_on_applicant_name"
     t.index ["application_date"], name: "index_contract_entries_on_application_date"
     t.index ["contract_start_date"], name: "index_contract_entries_on_contract_start_date"

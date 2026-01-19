@@ -1,4 +1,6 @@
 class ContractEntry < ApplicationRecord
+  belongs_to :agentic_job, optional: true
+
   # Validations
   validates :entry_head_id, presence: true
   validates :property_name, presence: true

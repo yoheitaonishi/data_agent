@@ -26,7 +26,7 @@ class MoushikomiScraperService
     options = Selenium::WebDriver::Chrome::Options.new
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    # options.add_argument("--headless") # デバッグ用に一時的に無効化
+    options.add_argument("--headless") # デバッグ用に一時的に無効化
 
     @driver = Selenium::WebDriver.for :chrome, options: options
     @wait = Selenium::WebDriver::Wait.new(timeout: 10)

@@ -6,9 +6,10 @@ class AgenticJob < ApplicationRecord
   DESTINATION_SYSTEM_OBIC7 = "OBIC7"
 
   # Status constants
-  STATUS_PROCESSING = "処理中"
-  STATUS_COMPLETED = "完了"
-  STATUS_FAILED = "失敗"
+  STATUS_PROCESSING = "processing"
+  STATUS_SUCCESS = "success"
+  STATUS_WARNING = "warning"
+  STATUS_ERROR = "error"
 
   # Execute contract data scraping
   def self.execute_contract_scraping
@@ -26,13 +27,13 @@ class AgenticJob < ApplicationRecord
 
       if result[:success]
         job.update!(
-          status: STATUS_COMPLETED,
+          status: STATUS_SUCCESS,
           record_count: result[:count],
           action_required: false
         )
       else
         job.update!(
-          status: STATUS_FAILED,
+          status: STATUS_ERROR,
           error_message: result[:error],
           action_required: true
         )
@@ -41,7 +42,7 @@ class AgenticJob < ApplicationRecord
       job
     rescue => e
       job.update!(
-        status: STATUS_FAILED,
+        status: STATUS_ERROR,
         error_message: e.message,
         action_required: true
       )

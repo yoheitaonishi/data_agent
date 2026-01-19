@@ -30,7 +30,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_081204) do
     t.string "applicant_edit_permission"
     t.string "applicant_email"
     t.string "applicant_name"
-    t.string "applicant_type"
     t.datetime "application_date"
     t.string "application_method"
     t.decimal "area", precision: 10, scale: 2

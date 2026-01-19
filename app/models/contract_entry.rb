@@ -13,11 +13,11 @@ class ContractEntry < ApplicationRecord
 
   # Format money fields for display
   def formatted_rent
-    rent ? "#{rent.to_i.to_s(:delimited)} 円" : "-"
+    rent ? "#{number_with_delimiter(rent.to_i)} 円" : "-"
   end
 
   def formatted_management_fee
-    management_fee ? "#{management_fee.to_i.to_s(:delimited)} 円" : "-"
+    management_fee ? "#{number_with_delimiter(management_fee.to_i)} 円" : "-"
   end
 
   def formatted_deposit_info
@@ -27,6 +27,10 @@ class ContractEntry < ApplicationRecord
   private
 
   def format_money(amount)
-    amount ? "#{amount.to_i.to_s(:delimited)} 円" : "0 円"
+    amount ? "#{number_with_delimiter(amount.to_i)} 円" : "0 円"
+  end
+
+  def number_with_delimiter(number)
+    number.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse
   end
 end

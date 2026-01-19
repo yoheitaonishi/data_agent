@@ -1,3 +1,6 @@
+require 'cgi'
+require 'json'
+
 class MoushikomiScraperService
   class ScrapingError < StandardError; end
 
@@ -318,6 +321,9 @@ class MoushikomiScraperService
     data[:applicant_email] = extract_labeled_value("申込者メールアドレス")
     data[:entry_status] = extract_labeled_value("申込ステータス")
 
+    # 申込者タイプ（法人/個人）
+    data[:applicant_type] = extract_applicant_type
+
     # 仲介会社情報
     data[:broker_company_name] = extract_labeled_value("仲介会社名")
     data[:broker_phone] = extract_labeled_value("仲介会社固定電話番号")
@@ -424,6 +430,44 @@ class MoushikomiScraperService
     return nil if text.nil? || text.empty?
     # Parse Japanese datetime format "2025/10/21 13:44"
     DateTime.parse(text) rescue nil
+  end
+
+  def extract_applicant_type
+    # Extract from React component props: EntryHeadCategoryLabel
+    # Example: data-react-props="{...&quot;isCorp&quot;:true...}"
+    begin
+      # Find the EntryHeadCategoryLabel component
+      element = @driver.find_element(xpath: "//div[@data-react-class='EntryHeadCategoryLabel']")
+      props_json = element.attribute("data-react-props")
+
+      if props_json
+        # Decode HTML entities and parse JSON
+        props_json = CGI.unescapeHTML(props_json)
+        props = JSON.parse(props_json)
+
+        # Check isCorp flag
+        if props["isCorp"] == true
+          return "法人"
+        else
+          return "個人"
+        end
+      end
+    rescue => e
+      Rails.logger.warn "Could not extract applicant type: #{e.message}"
+
+      # Fallback: try to find label text "法人" or "個人"
+      begin
+        if @driver.find_elements(xpath: "//span[contains(text(), '法人')]").any?
+          return "法人"
+        elsif @driver.find_elements(xpath: "//span[contains(text(), '個人')]").any?
+          return "個人"
+        end
+      rescue
+        # Ignore fallback errors
+      end
+    end
+
+    nil
   end
 
   def has_next_page?

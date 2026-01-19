@@ -56,6 +56,7 @@
         <th style="width: 50px;">No.</th>
         <th>物件名</th>
         <th>申込者名</th>
+        <th>タイプ</th>
         <th>住所</th>
         <th>家賃</th>
         <th>申込日時</th>
@@ -74,6 +75,15 @@
             <% end %>
           </td>
           <td><%= entry.applicant_name || 'N/A' %></td>
+          <td style="text-align: center;">
+            <% if entry.applicant_type == '法人' %>
+              <span style="background-color: #f0ad4e; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">法人</span>
+            <% elsif entry.applicant_type == '個人' %>
+              <span style="background-color: #5cb85c; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">個人</span>
+            <% else %>
+              -
+            <% end %>
+          </td>
           <td><%= entry.address || 'N/A' %></td>
           <td><%= entry.formatted_rent %></td>
           <td><%= entry.application_date ? entry.application_date.strftime('%Y/%m/%d %H:%M') : 'N/A' %></td>

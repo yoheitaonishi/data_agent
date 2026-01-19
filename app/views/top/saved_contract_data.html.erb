@@ -11,6 +11,7 @@
         <th>ID</th>
         <th>物件名</th>
         <th>申込者名</th>
+        <th>タイプ</th>
         <th>住所</th>
         <th>家賃</th>
         <th>管理費</th>
@@ -30,6 +31,15 @@
           <td style="text-align: center;"><%= entry.entry_head_id %></td>
           <td><%= entry.property_name %></td>
           <td><%= entry.applicant_name || 'N/A' %></td>
+          <td style="text-align: center;">
+            <% if entry.applicant_type == '法人' %>
+              <span style="background-color: #f0ad4e; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.9em;">法人</span>
+            <% elsif entry.applicant_type == '個人' %>
+              <span style="background-color: #5cb85c; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.9em;">個人</span>
+            <% else %>
+              -
+            <% end %>
+          </td>
           <td><%= entry.address || 'N/A' %></td>
           <td><%= entry.formatted_rent %></td>
           <td><%= entry.formatted_management_fee %></td>

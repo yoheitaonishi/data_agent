@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  resources :agentic_jobs, only: [:show]
   get "top/dev"
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

@@ -1,7 +1,6 @@
-class CreateImportHistories < ActiveRecord::Migration[8.1]
+class CreateAgenticJobs < ActiveRecord::Migration[8.1]
   def change
-    create_table :import_histories do |t|
-      t.string :job_id
+    create_table :agentic_jobs do |t|
       t.datetime :executed_at
       t.string :source_system
       t.string :destination_system

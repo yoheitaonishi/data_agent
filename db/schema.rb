@@ -10,14 +10,13 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_19_071755) do
-  create_table "import_histories", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+ActiveRecord::Schema[8.1].define(version: 2026_01_19_075234) do
+  create_table "agentic_jobs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.boolean "action_required"
     t.datetime "created_at", null: false
     t.string "destination_system"
     t.text "error_message"
     t.datetime "executed_at"
-    t.string "job_id"
     t.integer "record_count"
     t.string "source_system"
     t.string "status"

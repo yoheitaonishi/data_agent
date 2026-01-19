@@ -1,0 +1,2 @@
+class AgenticJob < ApplicationRecord
+end

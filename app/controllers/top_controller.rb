@@ -1,15 +1,15 @@
 class TopController < ApplicationController
   def index
-    @initial_data = ImportHistory.order(executed_at: :desc).map do |history|
+    @initial_data = AgenticJob.order(id: :desc).map do |job|
       {
-        id: history.job_id,
-        date: history.executed_at.strftime('%Y/%m/%d %H:%M:%S'),
-        source: history.source_system,
-        destination: history.destination_system,
-        status: history.status,
-        count: history.record_count,
-        requiredAction: history.action_required,
-        errorDetail: history.error_message
+        id: job.id,
+        date: job.executed_at.strftime('%Y/%m/%d %H:%M:%S'),
+        source: job.source_system,
+        destination: job.destination_system,
+        status: job.status,
+        count: job.record_count,
+        requiredAction: job.action_required,
+        errorDetail: job.error_message
       }
     end
   end

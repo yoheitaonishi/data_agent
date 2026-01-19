@@ -1,0 +1,61 @@
+<h1>保存済み契約準備中データ</h1>
+
+<div class="status">
+  <p><strong>ステータス:</strong> <%= @status %></p>
+</div>
+
+<% if @saved_entries && @saved_entries.any? %>
+  <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+    <thead>
+      <tr style="background-color: #f0f0f0;">
+        <th>ID</th>
+        <th>物件名</th>
+        <th>申込者名</th>
+        <th>住所</th>
+        <th>家賃</th>
+        <th>管理費</th>
+        <th>敷金/礼金/保証金</th>
+        <th>申込日時</th>
+        <th>番手</th>
+        <th>ステータス</th>
+        <th>仲介会社</th>
+        <th>担当者</th>
+        <th>保存日時</th>
+        <th>アクション</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @saved_entries.each do |entry| %>
+        <tr>
+          <td style="text-align: center;"><%= entry.entry_head_id %></td>
+          <td><%= entry.property_name %></td>
+          <td><%= entry.applicant_name || 'N/A' %></td>
+          <td><%= entry.address || 'N/A' %></td>
+          <td><%= entry.formatted_rent %></td>
+          <td><%= entry.formatted_management_fee %></td>
+          <td><small><%= entry.formatted_deposit_info %></small></td>
+          <td><%= entry.application_date ? entry.application_date.strftime('%Y/%m/%d %H:%M') : 'N/A' %></td>
+          <td style="text-align: center;"><%= entry.priority || '-' %></td>
+          <td><%= entry.entry_status || 'N/A' %></td>
+          <td><small><%= entry.broker_company_name || 'N/A' %></small></td>
+          <td><small><%= entry.broker_staff_name || 'N/A' %></small></td>
+          <td><small><%= entry.created_at.strftime('%Y/%m/%d %H:%M') %></small></td>
+          <td style="text-align: center;">
+            <% if entry.detail_url %>
+              <a href="<%= entry.detail_url %>" target="_blank" style="color: #007bff; text-decoration: underline;">詳細</a>
+            <% else %>
+              -
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p style="margin-top: 20px;">保存されたデータがありません。</p>
+<% end %>
+
+<div style="margin-top: 30px;">
+  <%= link_to "データ取得ページに戻る", contract_data_path, style: "padding: 10px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; margin-right: 10px;" %>
+  <%= link_to "トップに戻る", root_path, style: "padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;" %>
+</div>

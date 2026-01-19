@@ -41,6 +41,53 @@
   <p style="margin-top: 20px;">データがありません。</p>
 <% end %>
 
+<hr style="margin: 40px 0;">
+
+<h2>データベース保存済みデータ</h2>
+
+<% if @saved_entries && @saved_entries.any? %>
+  <div class="data-summary">
+    <p><strong>保存件数:</strong> <%= @saved_entries.length %>件</p>
+  </div>
+
+  <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+    <thead>
+      <tr style="background-color: #f0f0f0;">
+        <th style="width: 50px;">No.</th>
+        <th>物件名</th>
+        <th>申込者名</th>
+        <th>住所</th>
+        <th>家賃</th>
+        <th>申込日時</th>
+        <th>ステータス</th>
+        <th>保存日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @saved_entries.each_with_index do |entry, index| %>
+        <tr>
+          <td style="text-align: center;"><%= index + 1 %></td>
+          <td>
+            <%= entry.property_name %>
+            <% if entry.detail_url %>
+              <br><small><a href="<%= entry.detail_url %>" target="_blank" style="color: #007bff;">[詳細]</a></small>
+            <% end %>
+          </td>
+          <td><%= entry.applicant_name || 'N/A' %></td>
+          <td><%= entry.address || 'N/A' %></td>
+          <td><%= entry.formatted_rent %></td>
+          <td><%= entry.application_date ? entry.application_date.strftime('%Y/%m/%d %H:%M') : 'N/A' %></td>
+          <td><%= entry.entry_status || 'N/A' %></td>
+          <td><%= entry.created_at.strftime('%Y/%m/%d %H:%M') %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p style="margin-top: 20px;">保存されたデータがありません。</p>
+<% end %>
+
 <div style="margin-top: 30px;">
+  <%= link_to "保存済みデータ一覧", saved_contract_data_path, style: "padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; margin-right: 10px;" %>
   <%= link_to "トップに戻る", root_path, style: "padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;" %>
 </div>

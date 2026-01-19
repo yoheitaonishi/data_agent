@@ -32,8 +32,11 @@ class TopController < ApplicationController
     @contract_data = result[:data] || []
     @pages_scraped = result[:pages_scraped]
 
+    # Also load saved data from database
+    @saved_entries = ContractEntry.recent.limit(50)
+
     if result[:success]
-      @status = "契約準備中データを#{result[:count]}件取得しました（#{@pages_scraped}ページ）"
+      @status = "契約準備中データを#{result[:count]}件取得してDBに保存しました（#{@pages_scraped}ページ）"
     else
       @status = "エラーが発生しました: #{result[:error]}"
     end
@@ -41,7 +44,13 @@ class TopController < ApplicationController
     @status = "エラーが発生しました: #{e.message}"
     @contract_data = []
     @pages_scraped = 0
+    @saved_entries = ContractEntry.recent.limit(50)
     logger.error "contract_data エラー: #{e.message}"
     logger.error e.backtrace.join("\n")
+  end
+
+  def saved_contract_data
+    @saved_entries = ContractEntry.recent.limit(100)
+    @status = "データベースから#{@saved_entries.count}件のデータを取得しました"
   end
 end

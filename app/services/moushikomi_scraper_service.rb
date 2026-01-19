@@ -229,23 +229,44 @@ class MoushikomiScraperService
         @wait.until { @driver.find_element(css: "body") }
         sleep 1 # Give time for content to load
 
-        # Extract applicant name from detail page
-        applicant_name = extract_applicant_name
+        # Extract all detail data from detail page
+        detail_data = extract_detail_data
 
-        Rails.logger.info "Extracted applicant name: #{applicant_name}"
+        # Extract entry_head_id from URL
+        entry_head_id = detail_url.match(/entry_heads\/(\d+)/)[1] rescue nil
+
+        Rails.logger.info "Extracted detail data for: #{property_name}"
+
+        # Save to database
+        begin
+          contract_entry = ContractEntry.find_or_initialize_by(entry_head_id: entry_head_id)
+          contract_entry.assign_attributes(
+            property_name: property_name,
+            detail_url: full_url,
+            **detail_data
+          )
+          contract_entry.save!
+          Rails.logger.info "Saved ContractEntry ID: #{contract_entry.id}"
+        rescue => e
+          Rails.logger.error "Error saving to database: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+        end
 
         # Go back to list page
         @driver.navigate.back
-        @wait.until { @driver.find_element(css: "table.itandi-bb-ui__Table") }
+        @wait.until { @driver.find_element(css: "tbody") }
         sleep 1 # Wait for page to stabilize
 
         # Re-find rows after navigation
-        rows = @driver.find_elements(css: "table.itandi-bb-ui__Table tbody tr")
+        tbody = @driver.find_element(css: "tbody")
+        rows = tbody.find_elements(css: "tr")
 
         page_data << {
           property_name: property_name,
-          applicant_name: applicant_name,
-          detail_url: full_url
+          applicant_name: detail_data[:applicant_name],
+          detail_url: full_url,
+          entry_head_id: entry_head_id,
+          saved_to_db: true
         }
 
       rescue => e
@@ -267,29 +288,142 @@ class MoushikomiScraperService
   end
 
   def extract_applicant_name
-    # Try multiple selectors to find applicant name
-    selectors = [
-      { type: :xpath, value: "//*[contains(text(), '申込者')]/following-sibling::*" },
-      { type: :xpath, value: "//*[contains(text(), '申込者名')]/following-sibling::*" },
-      { type: :css, value: ".applicant-name" },
-      { type: :xpath, value: "//span[contains(text(), '申込者')]/ancestor::div/following-sibling::div" }
+    extract_labeled_value("申込者名")
+  end
+
+  def extract_detail_data
+    # Extract all data from detail page
+    data = {}
+
+    # 物件情報
+    data[:room_id] = extract_labeled_value("部屋ID")
+    data[:address] = extract_labeled_value("住所")
+    data[:area] = extract_numeric_value(extract_labeled_value("広さ"))
+    data[:rent] = extract_money_value(extract_labeled_value("家賃"))
+    data[:management_fee] = extract_money_value(extract_labeled_value("管理費"))
+
+    # 敷金/礼金/保証金
+    deposit_info = extract_labeled_value("敷金 / 礼金 / 保証金")
+    if deposit_info
+      parts = deposit_info.split("/").map(&:strip)
+      data[:deposit] = extract_money_value(parts[0]) if parts[0]
+      data[:key_money] = extract_money_value(parts[1]) if parts[1]
+      data[:guarantee_deposit] = extract_money_value(parts[2]) if parts[2]
+    end
+
+    # 申込者情報
+    data[:applicant_name] = extract_labeled_value("申込者名")
+    data[:application_date] = extract_datetime_value(extract_labeled_value("申込日時"))
+    data[:priority] = extract_labeled_value("番手").to_i rescue nil
+    data[:applicant_email] = extract_labeled_value("申込者メールアドレス")
+    data[:entry_status] = extract_labeled_value("申込ステータス")
+
+    # 仲介会社情報
+    data[:broker_company_name] = extract_labeled_value("仲介会社名")
+    data[:broker_phone] = extract_labeled_value("仲介会社固定電話番号")
+
+    staff_info = extract_labeled_value("担当者名 / 担当者Tel")
+    if staff_info
+      parts = staff_info.split("/").map(&:strip)
+      data[:broker_staff_name] = parts[0] if parts[0]
+      data[:broker_staff_phone] = parts[1] if parts[1]
+    end
+
+    data[:broker_staff_email] = extract_labeled_value("担当者Eメール")
+
+    # 適格請求書 - 登録番号
+    data[:registration_number] = extract_labeled_value("登録番号")
+
+    # 保証会社関連
+    data[:guarantee_company] = extract_labeled_value("利用保証会社")
+    data[:guarantee_result] = extract_labeled_value("保証審査結果")
+
+    # 連帯保証人
+    data[:joint_guarantor_usage] = extract_labeled_value("利用有無")
+
+    # 契約方法
+    data[:contract_method] = extract_labeled_value("契約方法")
+
+    # 申込者編集権限
+    data[:applicant_edit_permission] = extract_labeled_value("申込者の編集権限")
+
+    # 部屋ステータス
+    data[:room_status] = extract_labeled_value("部屋ステータス")
+
+    # 建物構造
+    data[:building_structure] = extract_labeled_value("建物構造")
+
+    # 階数
+    data[:floor] = extract_labeled_value("階")
+
+    # バルコニー面積
+    data[:balcony_area] = extract_numeric_value(extract_labeled_value("バルコニー面積"))
+
+    # 駐車場料金
+    data[:parking_fee] = extract_money_value(extract_labeled_value("駐車場料金"))
+
+    # 契約開始日
+    contract_start = extract_labeled_value("契約開始日")
+    data[:contract_start_date] = Date.parse(contract_start) rescue nil if contract_start
+
+    # 入居予定日
+    move_in = extract_labeled_value("入居予定日")
+    data[:move_in_date] = Date.parse(move_in) rescue nil if move_in
+
+    # 契約期間
+    data[:contract_period] = extract_labeled_value("契約期間")
+
+    # 更新料
+    data[:renewal_fee] = extract_money_value(extract_labeled_value("更新料"))
+
+    # 申込方法
+    data[:application_method] = extract_labeled_value("申込方法")
+
+    Rails.logger.info "Extracted data: #{data.inspect}"
+    data
+  end
+
+  def extract_labeled_value(label_text)
+    # Try multiple patterns to find label and its value
+    patterns = [
+      # Pattern 1: <label>Text</label><span class='block'>Value</span>
+      { xpath: "//label[contains(text(), '#{label_text}')]/following-sibling::span" },
+      # Pattern 2: <div class='label'>Text</div><span>Value</span>
+      { xpath: "//div[contains(@class, 'label') and contains(text(), '#{label_text}')]/following-sibling::span" },
+      # Pattern 3: <div class='label'>Text</div> followed by <span class='pa-x-12'>Value</span>
+      { xpath: "//div[contains(text(), '#{label_text}')]/following-sibling::span[@class='pa-x-12']" }
     ]
 
-    selectors.each do |selector|
+    patterns.each do |pattern|
       begin
-        element = @driver.find_element(selector[:type], selector[:value])
-        name = element.text.strip
-        return name unless name.empty?
+        element = @driver.find_element(xpath: pattern[:xpath])
+        value = element.text.strip
+        return value unless value.empty?
       rescue Selenium::WebDriver::Error::NoSuchElementError
         next
       end
     end
 
-    # If no selector works, log page source for debugging
-    Rails.logger.warn "Could not find applicant name. Page source sample:"
-    Rails.logger.warn @driver.page_source[0..1000]
+    Rails.logger.warn "Could not find value for label: #{label_text}"
+    nil
+  end
 
-    "名前取得失敗"
+  def extract_money_value(text)
+    return nil if text.nil? || text.empty?
+    # Remove currency symbol and commas, extract number
+    text.gsub(/[^\d.]/, "").to_f rescue nil
+  end
+
+  def extract_numeric_value(text)
+    return nil if text.nil? || text.empty?
+    # Extract first number from text
+    text.scan(/[\d.]+/).first.to_f rescue nil
+  end
+
+  def extract_datetime_value(text)
+    return nil if text.nil? || text.empty?
+    # Parse Japanese datetime format "2025/10/21 13:44"
+    DateTime.parse(text) rescue nil
   end
 
   def has_next_page?

@@ -1,5 +1,17 @@
 class TopController < ApplicationController
   def index
+    @initial_data = AgenticJob.order(id: :desc).map do |job|
+      {
+        id: job.id,
+        date: job.executed_at.strftime('%Y/%m/%d %H:%M:%S'),
+        source: job.source_system,
+        destination: job.destination_system,
+        status: job.status,
+        count: job.record_count,
+        requiredAction: job.action_required,
+        errorDetail: job.error_message
+      }
+    end
   end
 
   def dev

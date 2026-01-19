@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  resources :agentic_jobs, only: [:show]
   get "top/dev"
   get "top/contract_data"
   get "top/saved_contract_data", as: :saved_contract_data

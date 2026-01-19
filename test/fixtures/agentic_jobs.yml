@@ -1,0 +1,19 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  executed_at: 2026-01-19 16:52:34
+  source_system: MyString
+  destination_system: MyString
+  status: MyString
+  record_count: 1
+  action_required: false
+  error_message: MyText
+
+two:
+  executed_at: 2026-01-19 16:52:34
+  source_system: MyString
+  destination_system: MyString
+  status: MyString
+  record_count: 1
+  action_required: false
+  error_message: MyText

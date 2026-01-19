@@ -9,6 +9,42 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+        .animate-zoom-in {
+            animation: zoomIn 0.2s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+
     <%= yield :head %>
 
     <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
@@ -23,7 +59,42 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <%= yield %>
+  <body class="bg-gray-50 font-sans text-gray-900 h-screen overflow-hidden flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 text-white flex-shrink-0 hidden md:flex flex-col">
+        <div class="p-6 flex items-center space-x-3">
+            <div class="bg-blue-500 p-2 rounded-lg">
+                <i data-lucide="database" class="w-6 h-6 text-white"></i>
+            </div>
+            <span class="text-lg font-bold tracking-wide">Data Agent</span>
+        </div>
+        
+        <nav class="flex-1 px-4 space-y-2 mt-4">
+            <button onclick="setActiveTab('dashboard')" id="nav-dashboard" class="flex items-center w-full px-4 py-3 rounded-lg transition-colors text-slate-400 hover:bg-slate-800 hover:text-white">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i>
+                ダッシュボード
+            </button>
+            <button onclick="setActiveTab('list')" id="nav-list" class="flex items-center w-full px-4 py-3 rounded-lg transition-colors bg-blue-600 text-white">
+                <i data-lucide="file-json" class="w-5 h-5 mr-3"></i>
+                取込一覧
+            </button>
+            <button class="flex items-center w-full px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                <i data-lucide="settings" class="w-5 h-5 mr-3"></i>
+                設定
+            </button>
+        </nav>
+    </aside>
+
+    <%= yield %>    
+
+    <!-- JavaScript Logic -->
+    <script>
+      // lucideの初期化コードを書いて、turbolinksかでも通じるように
+      document.addEventListener("turbo:load", function() {
+        lucide.createIcons();
+      });
+
+    </script>
   </body>
 </html>

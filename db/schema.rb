@@ -10,13 +10,14 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_19_075337) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_19_075711) do
   create_table "contract_entries", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.text "additional_data"
     t.string "address"
     t.string "applicant_edit_permission"
     t.string "applicant_email"
     t.string "applicant_name"
+    t.string "applicant_type"
     t.datetime "application_date"
     t.string "application_method"
     t.decimal "area", precision: 10, scale: 2

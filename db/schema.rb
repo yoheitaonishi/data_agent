@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_19_075711) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_19_075337) do
   create_table "agentic_jobs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.boolean "action_required"
     t.datetime "created_at", null: false
@@ -29,7 +29,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_075711) do
     t.string "applicant_edit_permission"
     t.string "applicant_email"
     t.string "applicant_name"
-    t.string "applicant_type"
     t.datetime "application_date"
     t.string "application_method"
     t.decimal "area", precision: 10, scale: 2

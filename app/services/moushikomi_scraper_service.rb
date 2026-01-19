@@ -26,10 +26,13 @@ class MoushikomiScraperService
     options = Selenium::WebDriver::Chrome::Options.new
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--headless") # デバッグ用に一時的に無効化
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-blink-features=AutomationControlled")
 
     @driver = Selenium::WebDriver.for :chrome, options: options
-    @wait = Selenium::WebDriver::Wait.new(timeout: 10)
+    @wait = Selenium::WebDriver::Wait.new(timeout: 15)
   end
 
   def cleanup_driver
@@ -61,7 +64,7 @@ class MoushikomiScraperService
       rescue => e
         Rails.logger.warn "Form submit failed, trying button click: #{e.message}"
         submit_button = find_submit_button
-        submit_button.click
+        safe_click(submit_button)
         Rails.logger.info "Submit button clicked successfully"
       end
 
@@ -106,7 +109,7 @@ class MoushikomiScraperService
       Rails.logger.info "Looking for submit button in staff row..."
       submit_button = staff_row.find_element(css: "button[type='submit']")
       Rails.logger.info "Submit button found, clicking..."
-      submit_button.click
+      safe_click(submit_button)
 
       # Wait for staff login to complete
       Rails.logger.info "Waiting for staff login to complete..."
@@ -468,10 +471,10 @@ class MoushikomiScraperService
   def click_next_page
     begin
       next_button = @driver.find_element(css: "a.next:not(.disabled)")
-      next_button.click
+      safe_click(next_button)
     rescue Selenium::WebDriver::Error::NoSuchElementError
       next_link = @driver.find_element(xpath: "//a[contains(text(), '次へ') or contains(text(), '>')]")
-      next_link.click
+      safe_click(next_link)
     end
   end
 
@@ -501,5 +504,35 @@ class MoushikomiScraperService
     end
 
     raise Selenium::WebDriver::Error::NoSuchElementError, "Could not find submit button with any known selector"
+  end
+
+  # Headless mode helper: scroll element into view and wait
+  def scroll_to_element(element)
+    @driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
+    sleep 0.5 # Small wait for scroll to complete
+  end
+
+  # Headless mode helper: click using JavaScript
+  def js_click(element)
+    @driver.execute_script("arguments[0].click();", element)
+  end
+
+  # Safe click that works in headless mode
+  def safe_click(element)
+    begin
+      # First try: scroll into view
+      scroll_to_element(element)
+
+      # Second try: wait for element to be clickable
+      @wait.until { element.displayed? && element.enabled? }
+
+      # Try normal click first
+      element.click
+    rescue Selenium::WebDriver::Error::ElementClickInterceptedError,
+           Selenium::WebDriver::Error::ElementNotInteractableError
+      # Fallback: use JavaScript click
+      Rails.logger.warn "Normal click failed, using JavaScript click"
+      js_click(element)
+    end
   end
 end

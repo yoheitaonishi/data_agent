@@ -3,7 +3,7 @@ class TopController < ApplicationController
     @initial_data = AgenticJob.order(id: :desc).map do |job|
       {
         id: job.id,
-        date: job.executed_at.strftime('%Y/%m/%d %H:%M:%S'),
+        date: job.executed_at.strftime("%Y/%m/%d %H:%M:%S"),
         source: job.source_system,
         destination: job.destination_system,
         status: job.status,

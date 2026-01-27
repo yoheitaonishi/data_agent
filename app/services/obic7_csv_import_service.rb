@@ -71,6 +71,9 @@ class Obic7CsvImportService
     # - button id=btnLogin をクリック
     Rails.logger.info "Clicking login button..."
     btn_login = @driver.find_element(id: "btnLogin")
+
+    sleep(2)
+
     btn_login.click
 
     login_completed = @wait.until { @driver.find_element(:tag_name, "body").text.include?("\u4E0D\u52D5\u7523\u5171\u901A\u30E1\u30CB\u30E5\u30FC") }
@@ -122,9 +125,13 @@ class Obic7CsvImportService
     new_window = (@driver.window_handles - [ original_window ]).first
     @driver.switch_to.window(new_window)
 
+    import_master_window = @driver.window_handle
+
     bunrui_select = @driver.find_element(:name, "ctl00$mainArea$ddlBunrui")
     # bunrui_select　で "【賃貸住宅管理】顧客登録" を選択
     bunrui_select.find_element(:xpath, "//option[contains(text(), '【賃貸住宅管理】顧客登録')]").click
+
+    sleep(1)
 
     teigi_select = @driver.find_element(:name, "ctl00$mainArea$ddlTeigiName")
     # teigi_select で "【賃貸住宅管理】顧客登録" を選択
@@ -138,9 +145,41 @@ class Obic7CsvImportService
     torikomi_check_button = @driver.find_element(:name, "ctl00$mainArea$cbModeTorikomi")
     torikomi_check_button.click
 
-    binding.pry
+    torikomi_csv_uploader = @driver.find_element(:name, "ctl00$mainArea$fileUploader")
 
-    # Placeholder for actual CSV import logic
-    Rails.logger.info "Ready for CSV import steps (not yet defined in spec)."
+    csv_path = Rails.root.join("docs", "customer_sample.csv").to_s
+    Rails.logger.info "Uploading CSV file: #{csv_path}"
+    torikomi_csv_uploader.send_keys(csv_path)
+
+    kakutei_button = @driver.find_element(:name, "ctl00$mainArea$btnKakutei")
+    kakutei_button.click
+
+    sleep(1)
+
+    execute_button = @driver.find_element(:name, "ctl00$footerArea$btnExecute")
+    execute_button.click
+
+    sleep(1)
+
+    # <input type="button" class="ob-ctl ob-btn" style="width:80px;" value="はい"> を取得
+    confirm_button = @driver.find_element(:xpath, "//input[@value='はい']")
+    confirm_button.click
+
+    sleep(1)
+
+    @wait.until do
+      @driver.window_handles.size > 2
+    end
+
+    new_window = (@driver.window_handles - [ original_window, import_master_window ]).first
+    @driver.switch_to.window(new_window)
+
+    result = @driver.find_element(:tag_name, "body").text.include?("\u51E6\u7406\u7D42\u4E86\u65E5\u6642")
+
+    if result
+      Rails.logger.info "CSV import completed successfully."
+    else
+      raise ImportError, "CSV import failed."
+    end
   end
 end

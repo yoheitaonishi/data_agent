@@ -17,7 +17,7 @@ class Obic7CsvImportService
     setup_driver
     login
     # Future steps: navigate to CSV import page, upload file, etc.
-    perform_import_process
+    perform_import_customer
   ensure
     cleanup_driver
   end
@@ -71,6 +71,7 @@ class Obic7CsvImportService
     # - button id=btnLogin をクリック
     Rails.logger.info "Clicking login button..."
     btn_login = @driver.find_element(id: "btnLogin")
+    btn_login.click
 
     login_completed = @wait.until { @driver.find_element(:tag_name, "body").text.include?("\u4E0D\u52D5\u7523\u5171\u901A\u30E1\u30CB\u30E5\u30FC") }
 
@@ -82,7 +83,35 @@ class Obic7CsvImportService
     Rails.logger.info "Login action performed."
   end
 
-  def perform_import_process
+  def perform_import_customer
+    # 不動産共通メニュー というラベルを含む、classがpItemのdivタグを取得
+    Rails.logger.info "Looking for '不動産共通メニュー' menu item..."
+    menu_item = @wait.until do
+      @driver.find_element(:xpath, "//div[contains(@class, 'pItem') and contains(., '不動産共通メニュー')]")
+    end
+
+    Rails.logger.info "Clicking '不動産共通メニュー'..."
+    menu_item.click
+
+    sleep(1)
+
+    master_data_menu_item = @wait.until do
+      @driver.find_element(:xpath, "//div[contains(@class, 'pIG') and contains(., 'マスタ入出力')]")
+    end
+
+    Rails.logger.info "Clicking 'マスタデータ取込'..."
+    master_data_menu_item.click
+
+    sleep(1)
+
+    master_data_import_menu_item = @wait.until do
+      @driver.find_element(:xpath, "//li[contains(@class, 'pTJ') and contains(., 'マスタ受入')]")
+    end
+
+    master_data_import_menu_item.click
+
+    binding.pry
+
     # Placeholder for actual CSV import logic
     Rails.logger.info "Ready for CSV import steps (not yet defined in spec)."
   end

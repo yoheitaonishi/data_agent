@@ -105,12 +105,10 @@ class Obic7CsvImportService
     sleep(1)
 
     master_data_import_menu_item = @wait.until do
-      @driver.find_element(:xpath, "//li[contains(@class, 'pTJ') and contains(., 'マスタ受入')]")
+      @driver.find_element(:xpath, "//li[contains(@class, 'pIJ') and contains(., 'マスタ受入')]")
     end
 
     master_data_import_menu_item.click
-
-    binding.pry
 
     # Placeholder for actual CSV import logic
     Rails.logger.info "Ready for CSV import steps (not yet defined in spec)."

@@ -85,6 +85,9 @@ class Obic7CsvImportService
 
   def perform_import_customer
     # 不動産共通メニュー というラベルを含む、classがpItemのdivタグを取得
+
+    original_window = @driver.window_handle
+
     Rails.logger.info "Looking for '不動産共通メニュー' menu item..."
     menu_item = @wait.until do
       @driver.find_element(:xpath, "//div[contains(@class, 'pItem') and contains(., '不動産共通メニュー')]")
@@ -109,6 +112,17 @@ class Obic7CsvImportService
     end
 
     master_data_import_menu_item.click
+
+    sleep(1)
+
+    @wait.until do
+      @driver.window_handles.size > 1
+    end
+
+    new_window = (@driver.window_handles - [ original_window ]).first
+    @driver.switch_to.window(new_window)
+
+    binding.pry
 
     # Placeholder for actual CSV import logic
     Rails.logger.info "Ready for CSV import steps (not yet defined in spec)."

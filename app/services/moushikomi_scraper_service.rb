@@ -1,5 +1,5 @@
-require 'cgi'
-require 'json'
+require "cgi"
+require "json"
 
 class MoushikomiScraperService
   class ScrapingError < StandardError; end
@@ -88,7 +88,7 @@ class MoushikomiScraperService
       @wait.until { @driver.find_element(css: "table.jambo_table") }
 
       # Find the row containing the staff name
-      staff_name = ENV.fetch('MOUSHIKOMI_STAFF_NAME')
+      staff_name = ENV.fetch("MOUSHIKOMI_STAFF_NAME")
       staff_row = @wait.until do
         @driver.find_element(xpath: "//td[contains(text(), '#{staff_name}')]/parent::tr")
       end

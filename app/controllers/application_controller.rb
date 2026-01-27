@@ -5,5 +5,6 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
-  http_basic_authenticate_with name: "erealty", password: "poc2026" if Rails.env.production?
+  http_basic_authenticate_with name: ENV.fetch("BASIC_AUTH_USERNAME", "erealty"),
+                                password: ENV.fetch("BASIC_AUTH_PASSWORD", "poc2026") if Rails.env.production?
 end

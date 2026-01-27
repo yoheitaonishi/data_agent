@@ -122,6 +122,22 @@ class Obic7CsvImportService
     new_window = (@driver.window_handles - [ original_window ]).first
     @driver.switch_to.window(new_window)
 
+    bunrui_select = @driver.find_element(:name, "ctl00$mainArea$ddlBunrui")
+    # bunrui_select　で "【賃貸住宅管理】顧客登録" を選択
+    bunrui_select.find_element(:xpath, "//option[contains(text(), '【賃貸住宅管理】顧客登録')]").click
+
+    teigi_select = @driver.find_element(:name, "ctl00$mainArea$ddlTeigiName")
+    # teigi_select で "【賃貸住宅管理】顧客登録" を選択
+    teigi_select.find_element(:xpath, "//option[contains(text(), '顧客基本情報受入定義')]").click
+
+    display_button = @driver.find_element(:name, "ctl00$mainArea$btnDisp")
+    display_button.click
+
+    sleep(1)
+
+    torikomi_check_button = @driver.find_element(:name, "ctl00$mainArea$cbModeTorikomi")
+    torikomi_check_button.click
+
     binding.pry
 
     # Placeholder for actual CSV import logic

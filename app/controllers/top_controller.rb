@@ -65,4 +65,13 @@ class TopController < ApplicationController
     @saved_entries = ContractEntry.recent.limit(100)
     @status = "データベースから#{@saved_entries.count}件のデータを取得しました"
   end
+
+  def obic7_import_demo
+    Obic7CsvImportService.new.execute
+    redirect_to root_path, notice: "OBIC7取込デモを実行しました"
+  rescue => e
+    logger.error "OBIC7 Import Error: #{e.message}"
+    logger.error e.backtrace.join("\n")
+    redirect_to root_path, alert: "OBIC7取込実行中にエラーが発生しました: #{e.message}"
+  end
 end

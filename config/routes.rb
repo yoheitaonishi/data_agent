@@ -4,6 +4,7 @@ Rails.application.routes.draw do
   get "top/dev"
   get "top/contract_data"
   get "top/saved_contract_data", as: :saved_contract_data
+  post "top/obic7_import_demo", to: "top#obic7_import_demo", as: :obic7_import_demo
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

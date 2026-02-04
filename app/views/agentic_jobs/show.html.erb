@@ -84,10 +84,16 @@
                 <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                     <h3 class="text-md font-semibold text-gray-800">取得データ</h3>
                     <div class="flex items-center space-x-3">
-                        <% if @agentic_job.csv_file.attached? %>
-                          <%= link_to rails_blob_path(@agentic_job.csv_file, disposition: "attachment"), class: "inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" do %>
+                        <% if @agentic_job.customers.attached? %>
+                          <%= link_to rails_blob_path(@agentic_job.customers, disposition: "attachment"), class: "inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" do %>
                             <i data-lucide="download" class="w-4 h-4 mr-1.5 text-gray-500"></i>
-                            CSVダウンロード
+                            Customers CSV
+                          <% end %>
+                        <% end %>
+                        <% if @agentic_job.contracts.attached? %>
+                          <%= link_to rails_blob_path(@agentic_job.contracts, disposition: "attachment"), class: "inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" do %>
+                            <i data-lucide="download" class="w-4 h-4 mr-1.5 text-gray-500"></i>
+                            Contracts CSV
                           <% end %>
                         <% end %>
                         <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full"><%= @contract_entries.size %> 件</span>

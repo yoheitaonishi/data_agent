@@ -1,6 +1,7 @@
 class AgenticJob < ApplicationRecord
   has_many :contract_entries, dependent: :nullify
-  has_one_attached :csv_file
+  has_one_attached :customers
+  has_one_attached :contracts
 
   # System names
   SOURCE_SYSTEM_ITANDI = "イタンジ"
@@ -55,7 +56,7 @@ class AgenticJob < ApplicationRecord
     end
   end
 
-  def generate_contract_entries_csv
+  def generate_customers_csv
     require 'csv'
     
     columns = %w[
@@ -75,9 +76,36 @@ class AgenticJob < ApplicationRecord
       end
     end
 
-    csv_file.attach(
+    customers.attach(
       io: StringIO.new(csv_data),
-      filename: "contract_entries_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv",
+      filename: "customers_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv",
+      content_type: 'text/csv'
+    )
+  end
+
+  def generate_contracts_csv
+    require 'csv'
+    
+    columns = %w[
+      id entry_head_id application_date entry_status
+      applicant_type applicant_name applicant_email applicant_edit_permission
+      property_name room_id address rent management_fee deposit guarantee_deposit key_money
+      guarantee_company guarantee_result joint_guarantor_usage
+      broker_company_name broker_phone broker_staff_name broker_staff_email broker_staff_phone
+      contract_method application_method detail_url registration_number priority area
+      created_at updated_at
+    ]
+
+    csv_data = CSV.generate("\xEF\xBB\xBF") do |csv|
+      csv << columns
+      contract_entries.each do |entry|
+        csv << columns.map { |col| entry.send(col) }
+      end
+    end
+
+    contracts.attach(
+      io: StringIO.new(csv_data),
+      filename: "contracts_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv",
       content_type: 'text/csv'
     )
   end

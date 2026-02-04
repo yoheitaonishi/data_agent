@@ -68,3 +68,4 @@ gem "selenium-webdriver"
 gem "dotenv-rails", groups: [ :development, :test ]
 gem "pry"
 gem "sidekiq"
+gem "rails-i18n", "~> 8.1"

@@ -5,7 +5,8 @@ class AgenticJobsController < ApplicationController
   end
 
   def execute
-    job = AgenticJob.execute_contract_scraping
-    redirect_to agentic_job_path(job), notice: "契約データの取得を開始しました。"
+    job = AgenticJob.create_scraping_job
+    ScrapeContractDataJob.perform_later(job.id)
+    redirect_to root_path, notice: "契約データの取得を開始しました。"
   end
 end

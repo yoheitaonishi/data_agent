@@ -1,4 +1,6 @@
+require 'sidekiq/web'
 Rails.application.routes.draw do
+  mount Sidekiq::Web => "/sidekiq"
   resources :agentic_jobs, only: [ :show ]
   post "agentic_jobs/execute", to: "agentic_jobs#execute", as: :execute_agentic_job
   get "top/dev"

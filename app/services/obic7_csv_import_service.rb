@@ -16,8 +16,11 @@ class Obic7CsvImportService
   def execute
     setup_driver
     login
-    # Future steps: navigate to CSV import page, upload file, etc.
     perform_import_customer
+    cleanup_driver
+    setup_driver
+    login
+    perform_import_contract
   ensure
     cleanup_driver
   end
@@ -94,7 +97,7 @@ class Obic7CsvImportService
     Rails.logger.info "Looking for '不動産共通メニュー' menu item..."
     menu_item = @wait.until do
       @driver.find_element(:xpath, "//div[contains(@class, 'pItem') and contains(., '不動産共通メニュー')]")
-    end
+    end    
 
     Rails.logger.info "Clicking '不動産共通メニュー'..."
     menu_item.click
@@ -125,7 +128,9 @@ class Obic7CsvImportService
     new_window = (@driver.window_handles - [ original_window ]).first
     @driver.switch_to.window(new_window)
 
-    import_master_window = @driver.window_handle
+    sleep(1)
+
+    import_master_window = @driver.window_handle    
 
     bunrui_select = @driver.find_element(:name, "ctl00$mainArea$ddlBunrui")
     # bunrui_select　で "【賃貸住宅管理】顧客登録" を選択
@@ -175,6 +180,63 @@ class Obic7CsvImportService
     @driver.switch_to.window(new_window)
 
     result = @driver.find_element(:tag_name, "body").text.include?("\u51E6\u7406\u7D42\u4E86\u65E5\u6642")
+
+    if result
+      Rails.logger.info "CSV import completed successfully."
+    else
+      raise ImportError, "CSV import failed."
+    end
+  end
+
+  def perform_import_contract
+    original_window = @driver.window_handle
+
+    Rails.logger.info "Looking for '賃貸住宅管理メニュー' menu item..."
+    menu_item = @wait.until do
+      @driver.find_element(:xpath, "//div[contains(@class, 'pItem') and contains(., '賃貸住宅管理メニュー')]")
+    end
+
+    menu_item.click
+
+    sleep(1)
+
+    master_data_menu_item = @wait.until do
+      @driver.find_element(:xpath, "//div[contains(@class, 'pIG') and contains(., '契約')]")
+    end
+
+    Rails.logger.info "Clicking 'マスタデータ取込'..."
+    master_data_menu_item.click
+
+    sleep(1)
+
+    master_data_import_menu_item = @wait.until do
+      @driver.find_element(:xpath, "//li[contains(@class, 'pIJ') and contains(., '契約データ取込処理')]")
+    end
+
+    master_data_import_menu_item.click
+
+    sleep(1)
+
+    @wait.until do
+      @driver.window_handles.size > 1
+    end
+
+    new_window = (@driver.window_handles - [ original_window ]).first
+    @driver.switch_to.window(new_window)
+
+    kihon_csv_path = Rails.root.join("docs", "対応表_イーリアルティ様 - 基本情報ファイル.csv").to_s
+    kihon_csv_uploader = @driver.find_element(:id, "fileKihon_file")
+    kihon_csv_uploader.send_keys(kihon_csv_path)
+
+    sleep(1)
+
+    execute_button = @driver.find_element(:id, "btnExecute")
+    execute_button.click
+
+    confirm_button = @driver.find_element(:xpath, "//input[@value='はい']")
+    confirm_button.click
+
+    result = true
 
     if result
       Rails.logger.info "CSV import completed successfully."

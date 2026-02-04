@@ -67,3 +67,4 @@ end
 gem "selenium-webdriver"
 gem "dotenv-rails", groups: [ :development, :test ]
 gem "pry"
+gem "sidekiq"

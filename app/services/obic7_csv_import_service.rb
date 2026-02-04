@@ -16,8 +16,9 @@ class Obic7CsvImportService
   def execute
     setup_driver
     login
-    perform_import_customer
+    perform_import_customer  
     cleanup_driver
+    
     setup_driver
     login
     perform_import_contract
@@ -32,7 +33,7 @@ class Obic7CsvImportService
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     # Headless mode can be disabled for debugging if needed, but keeping it consistent with other services
-    options.add_argument("--headless=new") if false
+    options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")

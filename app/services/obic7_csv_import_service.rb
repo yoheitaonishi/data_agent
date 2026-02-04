@@ -8,7 +8,8 @@ class Obic7CsvImportService
   DEFAULT_USER = "t.izumi"
   DEFAULT_PASSWORD = "ym3dCfrQcHEc"
 
-  def initialize
+  def initialize(agentic_job_id: nil)
+    @agentic_job_id = agentic_job_id
     @driver = nil
     @wait = nil
   end
@@ -24,6 +25,8 @@ class Obic7CsvImportService
     perform_import_contract
   ensure
     cleanup_driver
+    @temp_customer_csv&.close!
+    @temp_contract_csv&.close!
   end
 
   private
@@ -33,7 +36,7 @@ class Obic7CsvImportService
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     # Headless mode can be disabled for debugging if needed, but keeping it consistent with other services
-    options.add_argument("--headless=new")
+    # options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
@@ -153,7 +156,21 @@ class Obic7CsvImportService
 
     torikomi_csv_uploader = @driver.find_element(:name, "ctl00$mainArea$fileUploader")
 
-    csv_path = Rails.root.join("docs", "customer_sample.csv").to_s
+    if @agentic_job_id
+      job = AgenticJob.find(@agentic_job_id)
+      if job.customers.attached?
+        @temp_customer_csv = Tempfile.new(['customers', '.csv'])
+        @temp_customer_csv.binmode
+        @temp_customer_csv.write(job.customers.download)
+        @temp_customer_csv.rewind
+        csv_path = @temp_customer_csv.path
+      else
+        raise ImportError, "No customers CSV attached to AgenticJob #{@agentic_job_id}"
+      end
+    else
+      csv_path = Rails.root.join("docs", "customer_sample.csv").to_s
+    end
+
     Rails.logger.info "Uploading CSV file: #{csv_path}"
     torikomi_csv_uploader.send_keys(csv_path)
 
@@ -225,7 +242,21 @@ class Obic7CsvImportService
     new_window = (@driver.window_handles - [ original_window ]).first
     @driver.switch_to.window(new_window)
 
-    kihon_csv_path = Rails.root.join("docs", "対応表_イーリアルティ様 - 基本情報ファイル.csv").to_s
+    if @agentic_job_id
+      job = AgenticJob.find(@agentic_job_id)
+      if job.contracts.attached?
+        @temp_contract_csv = Tempfile.new(['contracts', '.csv'])
+        @temp_contract_csv.binmode
+        @temp_contract_csv.write(job.contracts.download)
+        @temp_contract_csv.rewind
+        kihon_csv_path = @temp_contract_csv.path
+      else
+        raise ImportError, "No contracts CSV attached to AgenticJob #{@agentic_job_id}"
+      end
+    else
+      kihon_csv_path = Rails.root.join("docs", "対応表_イーリアルティ様 - 基本情報ファイル.csv").to_s
+    end
+
     kihon_csv_uploader = @driver.find_element(:id, "fileKihon_file")
     kihon_csv_uploader.send_keys(kihon_csv_path)
 

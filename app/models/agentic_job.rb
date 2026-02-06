@@ -102,6 +102,11 @@ class AgenticJob < ApplicationRecord
       ]
 
       contract_entries.each do |entry|
+        # 物件名と部屋番号を分離
+        property_only = extract_property_name_only(entry.property_name)
+        room_number = entry.room_id.presence || extract_room_from_property_name(entry.property_name)
+        property_with_room = "#{property_only} #{room_number}".strip
+
         # 連絡先1の電話番号を分割
         phone1_parts = split_phone_number(entry.contact1_phone1)
         # 連絡先1の郵便番号を分割
@@ -129,16 +134,20 @@ class AgenticJob < ApplicationRecord
           entry.applicant_gender || 2,  # 性別
           entry.applicant_is_corporate ? 1 : 0,  # 法人区分
           # 連絡先1
-          "#{entry.property_name} #{entry.room_id}",  # 連絡先名1_1
-          nil, nil, format_name_for_customer(entry.applicant_name, entry.applicant_name_kana), "1", nil, nil,
+          property_with_room,  # 連絡先名1_1
+          nil,
+          format_name_for_customer(entry.applicant_name, entry.applicant_name_kana), # 連絡先名1_2（顧客正式名と同じ）
+          "1", nil, nil,
           postal1_parts[0], postal1_parts[1],  # 連絡先郵便番号1
           entry.contact1_address1, entry.contact1_address2,  # 連絡先住所1
           phone1_parts[0], phone1_parts[1], phone1_parts[2],  # 連絡先電話番号1_1
           nil, nil, nil, nil, nil, nil, nil, nil, nil,  # 他の電話番号（空）
           entry.contact1_email,  # 連絡先メールアドレス1
           # 連絡先2
-          "#{entry.property_name} #{entry.room_id}",  # 連絡先名2_1
-          nil, entry.contact2_name, "1", nil, nil,
+          property_with_room,  # 連絡先名2_1
+          nil,
+          format_name_for_customer(entry.applicant_name, entry.applicant_name_kana), # 連絡先名2_2（申込者名）
+          "1", nil, nil,
           postal2_parts[0], postal2_parts[1],  # 連絡先郵便番号2
           entry.contact2_address1, entry.contact2_address2,  # 連絡先住所2
           phone2_parts[0], phone2_parts[1], phone2_parts[2],  # 連絡先電話番号2_1
@@ -148,9 +157,9 @@ class AgenticJob < ApplicationRecord
           format_workplace_name_halfwidth_kana(entry.workplace_name),  # 勤務先名
           "3",  # 勤務先敬称コード（固定）
           entry.workplace_department, entry.workplace_position,
-          entry.applicant_name, "1",  # 勤務先連絡先名
+          format_name_for_customer(entry.applicant_name, entry.applicant_name_kana), "1",  # 勤務先連絡先名
           workplace_postal_parts[0], workplace_postal_parts[1],  # 勤務先郵便番号
-          entry.workplace_address, nil,  # 勤務先住所
+          normalize_for_shift_jis(entry.workplace_address), nil,  # 勤務先住所
           workplace_phone_parts[0], workplace_phone_parts[1], workplace_phone_parts[2],  # 勤務先電話番号1
           nil, nil, nil, nil,  # 勤務先電話番号2（空）
           # 緊急連絡先
@@ -161,8 +170,8 @@ class AgenticJob < ApplicationRecord
           nil, nil, nil,  # 緊急連絡先電話番号2（空）
           entry.emergency_contact_relationship,  # 緊急連絡先借主との関係
           # 固定値
-          nil, "0", nil, "0", "0", "0", "1", "0", "1",  # 各種区分
-          nil, nil, nil, nil, "0",  # 保証会社コードなど
+          nil, nil, nil, "0", "0", "0", "1", "0", "1",  # 委託会社コード、代表予約区分、代表契約番号、請求書レイアウト区分、退去精算書レイアウト区分、督促状レイアウト区分、書類送付先コード、DM区分、請求書発行区分
+          nil, nil, nil, nil, nil,  # 延滞任意区分、保証会社コード、備考、会計取引先コード、キャンセル区分
           nil, nil, "0", nil, nil, nil, nil, nil, nil, nil, nil, nil, "9",  # 入金方法など
           # カナ住所（空）
           nil, nil, nil, nil, nil, nil, nil, nil,
@@ -172,11 +181,26 @@ class AgenticJob < ApplicationRecord
       end
     end
 
-    customers.attach(
-      io: StringIO.new(csv_data),
-      filename: "customers_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv",
-      content_type: 'text/csv'
-    )
+    # docs/にファイルを保存
+    filename = "customers_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv"
+    output_dir = Rails.root.join('docs')
+    FileUtils.mkdir_p(output_dir)
+    output_path = output_dir.join(filename)
+    File.open(output_path, 'wb') do |file|
+      file.write(csv_data)
+    end
+    Rails.logger.info "Customer CSV saved to: #{output_path}"
+
+    # Active Storageにも保存（Redisエラーが出ても処理を続行）
+    begin
+      customers.attach(
+        io: StringIO.new(csv_data),
+        filename: filename,
+        content_type: 'text/csv'
+      )
+    rescue RedisClient::CannotConnectError => e
+      Rails.logger.warn "Redis connection failed, but CSV file was saved to docs/: #{e.message}"
+    end
   end
 
   def generate_contracts_csv
@@ -227,10 +251,13 @@ class AgenticJob < ApplicationRecord
         today = Date.today
         payment_scheduled = Date.new(today.year, today.month, -1).next_month.next_day(24)  # 翌月25日
 
+        # 物件名から部屋番号を抽出
+        room_number = entry.room_id.presence || extract_room_from_property_name(entry.property_name)
+
         csv << [
           "999999999999",  # 受入元契約番号（固定）
           entry.property_code,  # 物件コード（マスタから取得）
-          entry.room_id,  # 部屋番号
+          room_number,  # 部屋番号
           nil,  # 契約者コード（空欄）
           "0",  # 契約者請求書発行区分（固定）
           "1",  # 契約者書類送付先コード（固定）
@@ -272,11 +299,26 @@ class AgenticJob < ApplicationRecord
       end
     end
 
-    contracts.attach(
-      io: StringIO.new(csv_data),
-      filename: "contracts_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv",
-      content_type: 'text/csv'
-    )
+    # docs/にファイルを保存
+    filename = "contracts_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv"
+    output_dir = Rails.root.join('docs')
+    FileUtils.mkdir_p(output_dir)
+    output_path = output_dir.join(filename)
+    File.open(output_path, 'wb') do |file|
+      file.write(csv_data)
+    end
+    Rails.logger.info "Contract CSV saved to: #{output_path}"
+
+    # Active Storageにも保存（Redisエラーが出ても処理を続行）
+    begin
+      contracts.attach(
+        io: StringIO.new(csv_data),
+        filename: filename,
+        content_type: 'text/csv'
+      )
+    rescue RedisClient::CannotConnectError => e
+      Rails.logger.warn "Redis connection failed, but CSV file was saved to docs/: #{e.message}"
+    end
   end
 
   private
@@ -303,26 +345,58 @@ class AgenticJob < ApplicationRecord
 
   def split_postal_code(postal)
     return [nil, nil] if postal.nil? || postal.empty?
-    parts = postal.split("-")
+    # "-"またはスペースで分割
+    parts = postal.split(/[-\s]+/)
     [parts[0], parts[1]]
   end
 
+  def extract_room_from_property_name(property_name)
+    # 物件名から部屋番号を抽出（例: "ステージファースト武蔵小山 104" → "104"）
+    return nil if property_name.nil?
+    if property_name =~ /\s+(\d+[A-Za-z]?)\s*$/
+      $1
+    else
+      nil
+    end
+  end
+
+  def extract_property_name_only(property_name)
+    # 物件名から部屋番号を除去（例: "ステージファースト武蔵小山 104" → "ステージファースト武蔵小山"）
+    return nil if property_name.nil?
+    if property_name =~ /^(.+?)\s+\d+[A-Za-z]?\s*$/
+      $1
+    else
+      property_name
+    end
+  end
+
   def format_name_for_customer(name, kana)
-    # カタカナとローマ字、数字だけ半角
-    kana.to_s.tr("ァ-ン", "ｧ-ﾝ").gsub(/\s+/, " ")
+    # 氏名（漢字）のカタカナ部分を半角に変換、スペースは全角スペースに統一
+    # 例: "テスト 太郎" → "ﾃｽﾄ　太郎"（全角スペース）
+    require 'nkf'
+    NKF.nkf('-w -Z4', name.to_s).gsub(/\s+/, "　")  # 全角スペースに変換
   end
 
   def format_kana_name(kana)
-    # 結合スペースなし、半角カタカナ、全角スペース
-    kana.to_s.tr("ァ-ン", "ｧ-ﾝ")
+    # スペースなし、半角カタカナ (-Z4: 全角カナ→半角カナ)
+    require 'nkf'
+    NKF.nkf('-w -Z4', kana.to_s).gsub(/\s+/, "")
   end
 
   def format_workplace_name_halfwidth_kana(name)
     # カタカナを半角に統一
-    name.to_s.tr("ァ-ン", "ｧ-ﾝ")
+    require 'nkf'
+    NKF.nkf('-w -Z4', name.to_s).gsub(/\s+/, " ")
   end
 
   def format_date_slash(date)
     date&.strftime("%Y/%-m/%-d")
+  end
+
+  def normalize_for_shift_jis(text)
+    return "" if text.nil? || text.empty?
+    # 全角英数字を半角に変換
+    require 'nkf'
+    NKF.nkf('-w -Z1', text.to_s)
   end
 end

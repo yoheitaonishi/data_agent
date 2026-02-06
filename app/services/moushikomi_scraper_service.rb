@@ -320,7 +320,7 @@ class MoushikomiScraperService
       data[:guarantee_deposit] = extract_money_value(parts[2]) if parts[2]
     end
 
-    # 申込者情報
+    # 申込者情報（上部の表示用）
     data[:applicant_name] = extract_labeled_value("申込者名")
     data[:application_date] = extract_datetime_value(extract_labeled_value("申込日時"))
     data[:priority] = extract_labeled_value("番手").to_i rescue nil
@@ -332,13 +332,19 @@ class MoushikomiScraperService
     # 法人区分を保存
     data[:applicant_is_corporate] = (data[:applicant_type] == "法人")
 
-    # 申込者カナ名と生年月日、性別を抽出
-    data[:applicant_name_kana] = extract_labeled_value("申込者名（カナ）")
-    birth_date_str = extract_labeled_value("生年月日")
-    data[:applicant_birth_date] = parse_japanese_date(birth_date_str)
+    # 申込者詳細フォームから抽出
+    # 氏名（フォームから）
+    form_name = extract_name_from_form("氏名")
+    data[:applicant_name] = form_name if form_name && !form_name.empty?
 
-    gender_str = extract_labeled_value("性別")
-    data[:applicant_gender] = parse_gender(gender_str)
+    # 氏名（カナ）
+    data[:applicant_name_kana] = extract_name_from_form("氏名（カナ）")
+
+    # 生年月日
+    data[:applicant_birth_date] = extract_birth_date
+
+    # 性別
+    data[:applicant_gender] = extract_gender
 
     # 連絡先情報1（物件住所 = contact1）
     postal_code = extract_labeled_value("郵便番号")
@@ -349,8 +355,8 @@ class MoushikomiScraperService
     data[:contact1_address1] = extract_labeled_value("住所")
 
     # 入居者1の携帯電話とメール
-    data[:contact1_phone1] = extract_labeled_value("携帯電話番号")
-    data[:contact1_email] = extract_labeled_value("メールアドレス")
+    data[:contact1_phone1] = extract_phone_number("携帯電話番号（※無い場合は自宅電話番号）")
+    data[:contact1_email] = extract_email("メールアドレス")
 
     # 連絡先情報2（入居者2）
     data[:contact2_name] = extract_labeled_value("入居者2氏名")
@@ -360,21 +366,19 @@ class MoushikomiScraperService
     data[:contact2_email] = extract_labeled_value("入居者2メールアドレス")
 
     # 勤務先情報
-    data[:workplace_name] = extract_labeled_value("勤務先/通学先名")
+    data[:workplace_name] = extract_workplace_name("勤務先/通学先名")
     data[:workplace_department] = extract_labeled_value("所属部署")
     data[:workplace_position] = extract_labeled_value("役職")
 
-    workplace_postal = extract_labeled_value("勤務先郵便番号")
-    data[:workplace_postal_code] = workplace_postal if workplace_postal
+    # 勤務先所在地を取得
+    workplace_location_data = extract_address_from_form("勤務先/通学先所在地")
+    if workplace_location_data
+      data[:workplace_postal_code] = workplace_location_data[:postal_code]
+      data[:workplace_address] = workplace_location_data[:full_address]
+    end
 
-    # 勤務先住所を結合
-    wp_pref = extract_labeled_value("勤務先都道府県")
-    wp_city = extract_labeled_value("勤務先市区町村")
-    wp_address = extract_labeled_value("勤務先丁目・番地")
-    wp_building = extract_labeled_value("勤務先建物名・部屋番号")
-    data[:workplace_address] = [wp_pref, wp_city, wp_address, wp_building].compact.join("")
-
-    data[:workplace_phone] = extract_labeled_value("勤務先電話番号")
+    # 勤務先電話番号を取得
+    data[:workplace_phone] = extract_phone_number("勤務先/通学先電話番号")
 
     # 緊急連絡先情報
     data[:emergency_contact_name] = extract_labeled_value("緊急連絡先氏名")
@@ -451,14 +455,250 @@ class MoushikomiScraperService
     end
   end
 
+  def extract_workplace_name(label_text)
+    # Extract workplace name (only the first input, not the kana one)
+    begin
+      # Find label containing the text
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Find the first text input (which is the name, not kana)
+      # Exclude inputs with name="text_kana"
+      inputs = parent.find_elements(xpath: ".//input[@type='text' and @name='text']")
+      if inputs.any?
+        value = inputs[0].attribute("value").to_s.strip
+        return value unless value.empty?
+      end
+
+      Rails.logger.warn "Workplace name input not found for '#{label_text}'"
+      nil
+    rescue => e
+      Rails.logger.error "Error extracting workplace name for '#{label_text}': #{e.message}"
+      nil
+    end
+  end
+
+  def extract_name_from_form(label_text)
+    # Extract name from form inputs (姓 and 名 fields)
+    begin
+      # Try to find label containing the text (may have nested spans)
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container - look for entry-format__item
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Find last_name and first_name inputs
+      inputs = parent.find_elements(xpath: ".//input[@type='text' and @class='form-control']")
+      if inputs.length >= 2
+        last_name = inputs[0].attribute("value").to_s.strip
+        first_name = inputs[1].attribute("value").to_s.strip
+        full_name = "#{last_name} #{first_name}".strip
+        return full_name unless full_name.empty?
+      end
+
+      Rails.logger.warn "Name inputs not found for '#{label_text}', found #{inputs.length} inputs"
+    rescue => e
+      Rails.logger.warn "Could not extract name from form for '#{label_text}': #{e.message}"
+      Rails.logger.warn e.backtrace.first(3).join("\n")
+    end
+    nil
+  end
+
+  def extract_birth_date
+    # Extract birth date from select dropdowns (yyyy, mm, dd)
+    begin
+      label_xpath = "//label[contains(., '生年月日')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Find year, month, day selects
+      year_select = parent.find_element(xpath: ".//select[@name='yyyy']")
+      month_select = parent.find_element(xpath: ".//select[@name='mm']")
+      day_select = parent.find_element(xpath: ".//select[@name='dd']")
+
+      # Get selected values using Selenium Select class
+      require 'selenium-webdriver'
+      year_value = Selenium::WebDriver::Support::Select.new(year_select).selected_options.first&.attribute("value")
+      month_value = Selenium::WebDriver::Support::Select.new(month_select).selected_options.first&.attribute("value")
+      day_value = Selenium::WebDriver::Support::Select.new(day_select).selected_options.first&.attribute("value")
+
+      if year_value && month_value && day_value && year_value != "" && month_value != "" && day_value != ""
+        return Date.parse("#{year_value}-#{month_value}-#{day_value}")
+      else
+        Rails.logger.warn "Birth date not fully selected: year=#{year_value}, month=#{month_value}, day=#{day_value}"
+      end
+    rescue => e
+      Rails.logger.warn "Could not extract birth date: #{e.message}"
+      Rails.logger.warn e.backtrace.first(3).join("\n")
+    end
+    nil
+  end
+
+  def extract_gender
+    # Extract gender from radio buttons
+    begin
+      label_xpath = "//label[contains(text(), '性別')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Find checked radio button - try multiple approaches
+      # Approach 1: Look for checked attribute
+      checked_radio = parent.find_elements(xpath: ".//input[@type='radio' and @checked]")
+      if checked_radio.any?
+        gender_value = checked_radio.first.attribute("value")
+        return parse_gender(gender_value)
+      end
+
+      # Approach 2: Use Selenium's selected? method
+      all_radios = parent.find_elements(xpath: ".//input[@type='radio']")
+      all_radios.each do |radio|
+        if radio.selected?
+          gender_value = radio.attribute("value")
+          return parse_gender(gender_value)
+        end
+      end
+
+      Rails.logger.warn "No gender selected"
+    rescue => e
+      Rails.logger.warn "Could not extract gender: #{e.message}"
+    end
+    nil
+  end
+
+  def extract_address_from_form(label_text)
+    # Extract address components from address form
+    begin
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container for the whole address section
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__address') or contains(@class, 'entry-format__item')]")
+
+      # Extract postal code (2 parts)
+      postal_inputs = parent.find_elements(xpath: ".//input[@name='zip_code_1' or @name='zip_code_2']")
+      postal_code = nil
+      if postal_inputs.length >= 2
+        zip1 = postal_inputs[0].attribute("value").to_s.strip
+        zip2 = postal_inputs[1].attribute("value").to_s.strip
+        postal_code = "#{zip1} #{zip2}" if zip1 && zip2 && !zip1.empty?
+      end
+
+      # Extract address components
+      state_input = parent.find_elements(xpath: ".//input[@name='state']").first
+      city_input = parent.find_elements(xpath: ".//input[@name='city']").first
+      street_input = parent.find_elements(xpath: ".//input[@name='street']").first
+      other_input = parent.find_elements(xpath: ".//input[@name='other']").first
+
+      state = state_input&.attribute("value").to_s.strip
+      city = city_input&.attribute("value").to_s.strip
+      street = street_input&.attribute("value").to_s.strip
+      other = other_input&.attribute("value").to_s.strip
+
+      # Combine address parts
+      full_address = [state, city, street, other].reject(&:empty?).join("")
+
+      return {
+        postal_code: postal_code,
+        full_address: full_address.empty? ? nil : full_address
+      }
+    rescue => e
+      Rails.logger.warn "Could not extract address for '#{label_text}': #{e.message}"
+      return { postal_code: nil, full_address: nil }
+    end
+  end
+
+  def extract_phone_number(label_text)
+    # Extract phone number from 3-part input fields
+    begin
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Find phone number inputs
+      phone_inputs = parent.find_elements(xpath: ".//input[@type='tel']")
+      if phone_inputs.length >= 3
+        part1 = phone_inputs[0].attribute("value").to_s.strip
+        part2 = phone_inputs[1].attribute("value").to_s.strip
+        part3 = phone_inputs[2].attribute("value").to_s.strip
+
+        return "#{part1}-#{part2}-#{part3}" if part1 && part2 && part3 && !part1.empty?
+      end
+    rescue => e
+      Rails.logger.warn "Could not extract phone number for '#{label_text}': #{e.message}"
+    end
+    nil
+  end
+
+  def extract_email(label_text)
+    # Extract email from input field
+    begin
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Find email input
+      email_input = parent.find_element(xpath: ".//input[@type='email' or @type='text']")
+      return email_input.attribute("value").to_s.strip if email_input
+    rescue => e
+      Rails.logger.warn "Could not extract email for '#{label_text}': #{e.message}"
+    end
+    nil
+  end
+
   def extract_labeled_value(label_text)
     # Try multiple patterns to find label and its value
+    # Pattern 1: Try to find input value after label (form inputs)
+    begin
+      # Find label containing the text
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+
+      # Get parent container
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item')]")
+
+      # Try to find input with value attribute
+      inputs = parent.find_elements(xpath: ".//input[@value and @value!='']")
+      if inputs.any?
+        # If multiple inputs (like name fields), join them
+        values = inputs.map { |input| input.attribute("value").to_s.strip }.reject(&:empty?)
+        return values.join(" ") if values.any?
+      end
+
+      # Try to find selected option in select
+      selects = parent.find_elements(xpath: ".//select")
+      if selects.any?
+        selected_values = selects.map do |select|
+          selected = select.find_elements(xpath: ".//option[@selected]")
+          selected.any? ? selected.first.attribute("value") : nil
+        end.compact
+        return selected_values.join("/") if selected_values.any?
+      end
+
+      # Try to find checked radio button
+      radios = parent.find_elements(xpath: ".//input[@type='radio' and @checked]")
+      if radios.any?
+        return radios.first.attribute("value")
+      end
+    rescue Selenium::WebDriver::Error::NoSuchElementError
+      # Continue to fallback patterns
+    end
+
+    # Pattern 2: Try span with class='block' (for display-only fields)
     patterns = [
-      # Pattern 1: <label>Text</label><span class='block'>Value</span>
-      { xpath: "//label[contains(text(), '#{label_text}')]/following-sibling::span" },
-      # Pattern 2: <div class='label'>Text</div><span>Value</span>
+      { xpath: "//label[contains(text(), '#{label_text}')]/following-sibling::span[@class='block']" },
       { xpath: "//div[contains(@class, 'label') and contains(text(), '#{label_text}')]/following-sibling::span" },
-      # Pattern 3: <div class='label'>Text</div> followed by <span class='pa-x-12'>Value</span>
       { xpath: "//div[contains(text(), '#{label_text}')]/following-sibling::span[@class='pa-x-12']" }
     ]
 

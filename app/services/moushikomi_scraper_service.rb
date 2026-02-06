@@ -329,6 +329,72 @@ class MoushikomiScraperService
 
     # 申込者タイプ（法人/個人）
     data[:applicant_type] = extract_applicant_type
+    # 法人区分を保存
+    data[:applicant_is_corporate] = (data[:applicant_type] == "法人")
+
+    # 申込者カナ名と生年月日、性別を抽出
+    data[:applicant_name_kana] = extract_labeled_value("申込者名（カナ）")
+    birth_date_str = extract_labeled_value("生年月日")
+    data[:applicant_birth_date] = parse_japanese_date(birth_date_str)
+
+    gender_str = extract_labeled_value("性別")
+    data[:applicant_gender] = parse_gender(gender_str)
+
+    # 連絡先情報1（物件住所 = contact1）
+    postal_code = extract_labeled_value("郵便番号")
+    if postal_code
+      parts = postal_code.split("-")
+      data[:contact1_postal_code] = postal_code
+    end
+    data[:contact1_address1] = extract_labeled_value("住所")
+
+    # 入居者1の携帯電話とメール
+    data[:contact1_phone1] = extract_labeled_value("携帯電話番号")
+    data[:contact1_email] = extract_labeled_value("メールアドレス")
+
+    # 連絡先情報2（入居者2）
+    data[:contact2_name] = extract_labeled_value("入居者2氏名")
+    data[:contact2_postal_code] = postal_code  # 物件の郵便番号と同じ
+    data[:contact2_address1] = data[:address]  # 物件住所と同じ
+    data[:contact2_phone1] = extract_labeled_value("入居者2携帯電話番号")
+    data[:contact2_email] = extract_labeled_value("入居者2メールアドレス")
+
+    # 勤務先情報
+    data[:workplace_name] = extract_labeled_value("勤務先/通学先名")
+    data[:workplace_department] = extract_labeled_value("所属部署")
+    data[:workplace_position] = extract_labeled_value("役職")
+
+    workplace_postal = extract_labeled_value("勤務先郵便番号")
+    data[:workplace_postal_code] = workplace_postal if workplace_postal
+
+    # 勤務先住所を結合
+    wp_pref = extract_labeled_value("勤務先都道府県")
+    wp_city = extract_labeled_value("勤務先市区町村")
+    wp_address = extract_labeled_value("勤務先丁目・番地")
+    wp_building = extract_labeled_value("勤務先建物名・部屋番号")
+    data[:workplace_address] = [wp_pref, wp_city, wp_address, wp_building].compact.join("")
+
+    data[:workplace_phone] = extract_labeled_value("勤務先電話番号")
+
+    # 緊急連絡先情報
+    data[:emergency_contact_name] = extract_labeled_value("緊急連絡先氏名")
+    emergency_postal = extract_labeled_value("緊急連絡先郵便番号")
+    data[:emergency_contact_postal_code] = emergency_postal if emergency_postal
+
+    # 緊急連絡先住所を結合
+    ec_pref = extract_labeled_value("緊急連絡先都道府県")
+    ec_city = extract_labeled_value("緊急連絡先市区町村")
+    ec_address = extract_labeled_value("緊急連絡先丁目・番地")
+    ec_building = extract_labeled_value("緊急連絡先建物名・部屋番号")
+    data[:emergency_contact_address] = [ec_pref, ec_city, ec_address, ec_building].compact.join("")
+
+    data[:emergency_contact_phone] = extract_labeled_value("緊急連絡先携帯電話番号")
+    data[:emergency_contact_relationship] = extract_labeled_value("続柄")
+
+    # 契約日時情報
+    contract_start_str = extract_labeled_value("契約開始日")
+    data[:contract_start_date] = parse_japanese_date(contract_start_str)
+    data[:move_in_date] = data[:contract_start_date]  # 入居日は契約開始日と同じ
 
     # 仲介会社情報
     data[:broker_company_name] = extract_labeled_value("仲介会社名")
@@ -364,6 +430,25 @@ class MoushikomiScraperService
 
     Rails.logger.info "Extracted data: #{data.inspect}"
     data
+  end
+
+  def parse_japanese_date(date_str)
+    return nil if date_str.nil? || date_str.empty?
+    # Parse Japanese date format "2000/1/1" or "2000年1月1日"
+    date_str = date_str.gsub(/[年月]/, "/").gsub(/日/, "")
+    Date.parse(date_str) rescue nil
+  end
+
+  def parse_gender(gender_str)
+    return nil if gender_str.nil? || gender_str.empty?
+    case gender_str
+    when /男/
+      0
+    when /女/
+      1
+    else
+      2
+    end
   end
 
   def extract_labeled_value(label_text)

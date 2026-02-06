@@ -398,7 +398,10 @@ class MoushikomiScraperService
     # 契約日時情報
     contract_start_str = extract_labeled_value("契約開始日")
     data[:contract_start_date] = parse_japanese_date(contract_start_str)
-    data[:move_in_date] = data[:contract_start_date]  # 入居日は契約開始日と同じ
+
+    # 入居希望日を物件情報から取得
+    move_in_str = extract_date_input_value("入居希望日")
+    data[:move_in_date] = parse_japanese_date(move_in_str) || data[:contract_start_date]
 
     # 仲介会社情報
     data[:broker_company_name] = extract_labeled_value("仲介会社名")
@@ -434,6 +437,28 @@ class MoushikomiScraperService
 
     Rails.logger.info "Extracted data: #{data.inspect}"
     data
+  end
+
+  def extract_date_input_value(label_text)
+    # Extract date value from input field with name="date"
+    begin
+      label_xpath = "//label[contains(., '#{label_text}')]"
+      label_element = @driver.find_element(xpath: label_xpath)
+      parent = label_element.find_element(xpath: "./ancestor::div[contains(@class, 'entry-format__item') or contains(@class, 'form-group')]")
+
+      # Find input with name="date"
+      date_input = parent.find_elements(xpath: ".//input[@name='date']").first
+      if date_input
+        value = date_input.attribute("value").to_s.strip
+        return value unless value.empty?
+      end
+
+      Rails.logger.warn "Date input not found for '#{label_text}'"
+      nil
+    rescue => e
+      Rails.logger.error "Error extracting date input for '#{label_text}': #{e.message}"
+      nil
+    end
   end
 
   def parse_japanese_date(date_str)
@@ -730,8 +755,10 @@ class MoushikomiScraperService
 
   def extract_datetime_value(text)
     return nil if text.nil? || text.empty?
-    # Parse Japanese datetime format "2025/10/21 13:44"
-    DateTime.parse(text) rescue nil
+    # Parse Japanese datetime format "2025/10/21 13:44" as JST (Japan Standard Time)
+    # HTMLの日時は日本時間なので、明示的にJSTとしてパース
+    Time.zone = 'Tokyo'
+    Time.zone.parse(text) rescue nil
   end
 
   def extract_applicant_type

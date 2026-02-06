@@ -249,7 +249,8 @@ class AgenticJob < ApplicationRecord
 
         # 未払計上日と支払予定日
         today = Date.today
-        payment_scheduled = Date.new(today.year, today.month, -1).next_month.next_day(24)  # 翌月25日
+        # 支払予定日は未払計上日の翌月25日
+        payment_scheduled = Date.new(today.year, today.month, 25).next_month
 
         # 物件名から部屋番号を抽出
         room_number = entry.room_id.presence || extract_room_from_property_name(entry.property_name)

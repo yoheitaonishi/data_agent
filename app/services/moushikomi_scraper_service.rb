@@ -15,7 +15,7 @@ class MoushikomiScraperService
     setup_driver
     login
     navigate_to_contract_page
-    scrape_all_pages
+    result = scrape_all_pages
 
     # スクレイピング完了後、CSV生成
     if @agentic_job_id
@@ -24,6 +24,12 @@ class MoushikomiScraperService
       job.generate_customers_csv
       Rails.logger.info "CSV生成完了"
     end
+
+    result
+  rescue => e
+    Rails.logger.error "Error in scrape_contract_data: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    { success: false, error: e.message }
   ensure
     cleanup_driver
   end

@@ -16,6 +16,14 @@ class MoushikomiScraperService
     login
     navigate_to_contract_page
     scrape_all_pages
+
+    # スクレイピング完了後、CSV生成
+    if @agentic_job_id
+      job = AgenticJob.find(@agentic_job_id)
+      Rails.logger.info "CSV生成開始..."
+      job.generate_customers_csv
+      Rails.logger.info "CSV生成完了"
+    end
   ensure
     cleanup_driver
   end

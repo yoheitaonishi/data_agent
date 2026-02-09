@@ -70,7 +70,7 @@ class AgenticJob < ApplicationRecord
     require 'csv'
 
     # 基本情報ファイル用のCSV生成（todo.mdの1種類目）
-    csv_data = CSV.generate(encoding: "Shift_JIS", force_quotes: false) do |csv|
+    csv_body = CSV.generate(encoding: "UTF-8", force_quotes: false, row_sep: "\r\n") do |csv|
       # ヘッダー行（日本語）
       csv << %w[
         取引先コード 顧客正式名 顧客敬称コード 顧客カナ名 顧客略名 生年月日 性別 法人区分
@@ -186,6 +186,7 @@ class AgenticJob < ApplicationRecord
         ]
       end
     end
+    csv_data = "\uFEFF" + csv_body
 
     # docs/にファイルを保存
     filename = "customers_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv"
@@ -213,7 +214,7 @@ class AgenticJob < ApplicationRecord
     require 'csv'
 
     # 契約ファイル用のCSV生成（todo.mdの2種類目）
-    csv_data = CSV.generate(encoding: "Shift_JIS", force_quotes: false) do |csv|
+    csv_body = CSV.generate(encoding: "UTF-8", force_quotes: false, row_sep: "\r\n") do |csv|
       # ヘッダー行（日本語）
       csv << %w[
         受入元契約番号 物件コード 部屋番号 契約者コード 契約者請求書発行区分 契約者書類送付先コード 契約者申込金額
@@ -305,6 +306,7 @@ class AgenticJob < ApplicationRecord
         ]
       end
     end
+    csv_data = "\uFEFF" + csv_body
 
     # docs/にファイルを保存
     filename = "contracts_#{id}_#{Time.current.strftime('%Y%m%d%H%M%S')}.csv"

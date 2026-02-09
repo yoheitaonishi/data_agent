@@ -114,17 +114,17 @@ class AgenticJob < ApplicationRecord
         property_with_room = "#{property_only} #{room_number}".strip
 
         # 連絡先1の電話番号を分割
-        phone1_parts = split_phone_number(entry.contact1_phone1)
+        phone1_parts = split_phone_number(entry.contact1_phone1).map { |part| stringify_or_nil(part) }
         # 連絡先1の郵便番号を分割
-        postal1_parts = split_postal_code(entry.contact1_postal_code)
+        postal1_parts = split_postal_code(entry.contact1_postal_code).map { |part| stringify_or_nil(part) }
         # 連絡先2の電話番号を分割
-        phone2_parts = split_phone_number(entry.contact2_phone1)
+        phone2_parts = split_phone_number(entry.contact2_phone1).map { |part| stringify_or_nil(part) }
         # 連絡先2の郵便番号を分割
-        postal2_parts = split_postal_code(entry.contact2_postal_code)
+        postal2_parts = split_postal_code(entry.contact2_postal_code).map { |part| stringify_or_nil(part) }
         # 勤務先の電話番号を分割
-        workplace_phone_parts = split_phone_number(entry.workplace_phone)
+        workplace_phone_parts = split_phone_number(entry.workplace_phone).map { |part| stringify_or_nil(part) }
         # 勤務先の郵便番号を分割
-        workplace_postal_parts = split_postal_code(entry.workplace_postal_code)
+        workplace_postal_parts = split_postal_code(entry.workplace_postal_code).map { |part| stringify_or_nil(part) }
         # 緊急連絡先の電話番号を分割
         emergency_phone_parts = split_phone_number(entry.emergency_contact_phone)
         # 緊急連絡先の郵便番号を分割
@@ -140,7 +140,7 @@ class AgenticJob < ApplicationRecord
           entry.applicant_gender || 2,  # 性別
           entry.applicant_is_corporate ? 1 : 0,  # 法人区分
           # 連絡先1
-          property_with_room,  # 連絡先名1_1
+          format_contact_name_halfwidth_kana(property_with_room),  # 連絡先名1_1
           nil,
           format_name_for_customer(entry.applicant_name, entry.applicant_name_kana), # 連絡先名1_2（顧客正式名と同じ）
           "1", nil, nil,
@@ -150,7 +150,7 @@ class AgenticJob < ApplicationRecord
           nil, nil, nil, nil, nil, nil, nil, nil, nil,  # 他の電話番号（空）
           entry.contact1_email,  # 連絡先メールアドレス1
           # 連絡先2
-          property_with_room,  # 連絡先名2_1
+          format_contact_name_halfwidth_kana(property_with_room),  # 連絡先名2_1
           nil,
           format_name_for_customer(entry.applicant_name, entry.applicant_name_kana), # 連絡先名2_2（申込者名）
           "1", nil, nil,
@@ -242,15 +242,15 @@ class AgenticJob < ApplicationRecord
         move_in = entry.move_in_date || entry.contract_start_date || entry.application_date&.to_date
         contract_date = move_in
         contract_end = move_in ? move_in + 2.years - 1.day : nil
-        result_month = move_in&.strftime("%y-%b")
+        result_month = move_in
         month_end = move_in ? Date.new(move_in.year, move_in.month, -1) : nil
 
         # 日割日数と回収月区分を計算
-        daily_rent_days = nil
+        prorated_days = nil
         billing_month = nil
         if move_in
-          daily_rent_days = move_in.day <= 10 ? 0 : 1
-          billing_month = daily_rent_days
+          prorated_days = (month_end - move_in).to_i + 1
+          billing_month = move_in.day <= 10 ? 0 : 1
         end
 
         # 未払計上日と支払予定日
@@ -268,7 +268,7 @@ class AgenticJob < ApplicationRecord
           nil,  # 契約者コード（空欄）
           "0",  # 契約者請求書発行区分（固定）
           "1",  # 契約者書類送付先コード（固定）
-          entry.rent,  # 契約者申込金額（家賃）
+          "0",  # 契約者申込金額（固定）
           nil,  # 入居者コード（契約者コードと同じ = 空）
           nil, "0", "1", nil,  # 入居者情報
           nil, nil, nil, nil, nil, nil, nil, nil,  # 保証人情報（不要）
@@ -278,11 +278,11 @@ class AgenticJob < ApplicationRecord
           nil,  # 契約完了日（不要）
           move_in,  # 月額消費税基準日（入居日と同じ）
           move_in,  # 初回契約日（入居日と同じ）
-          result_month,  # 実績集計年月（入居日の月）
+          result_month,  # 実績集計年月（入居日と同じ形式）
           month_end,  # 売上計上日（入居日の月の月末）
           move_in,  # 賃料発生日（入居日と同じ）
-          nil,  # 日割日数（不要）
-          daily_rent_days,  # 翌月以降請求月数
+          prorated_days,  # 日割日数
+          billing_month,  # 翌月以降請求月数
           contract_date,  # 契約日（入居日と同じ）
           "2",  # 更新期間(年)（固定）
           "0",  # 更新期間(月)（固定）
@@ -385,9 +385,15 @@ class AgenticJob < ApplicationRecord
   end
 
   def format_kana_name(kana)
-    # スペースなし、半角カタカナ (-Z4: 全角カナ→半角カナ)
+    # 半角カタカナ、氏名の間は全角スペース
     require 'nkf'
-    NKF.nkf('-w -Z4', kana.to_s).gsub(/\s+/, "")
+    NKF.nkf('-w -Z4', kana.to_s).gsub(/\s+/, "　")
+  end
+
+  def format_contact_name_halfwidth_kana(name)
+    # 連絡先名内のカタカナを半角に統一
+    require 'nkf'
+    NKF.nkf('-w -Z4', name.to_s)
   end
 
   def format_workplace_name_halfwidth_kana(name)
@@ -405,5 +411,9 @@ class AgenticJob < ApplicationRecord
     # 全角英数字を半角に変換
     require 'nkf'
     NKF.nkf('-w -Z1', text.to_s)
+  end
+
+  def stringify_or_nil(value)
+    value.nil? ? nil : value.to_s
   end
 end

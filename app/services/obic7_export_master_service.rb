@@ -18,7 +18,16 @@ class Obic7ExportMasterService
   def execute_export_customer
     setup_driver
     login
-    perform_export_customer
+    perform_export_master("【賃貸住宅管理】顧客登録", "顧客基本情報出力定義")
+  ensure
+    cleanup_driver
+    @temp_customer_csv&.close!
+  end
+
+  def execute_export_properties
+    setup_driver
+    login
+    perform_export_master("【賃貸住宅管理】物件登録", "物件基本情報出力定義")
   ensure
     cleanup_driver
     @temp_customer_csv&.close!
@@ -31,7 +40,7 @@ class Obic7ExportMasterService
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     # Headless mode can be disabled for debugging if needed, but keeping it consistent with other services
-    # options.add_argument("--headless=new")
+    options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
@@ -94,7 +103,7 @@ class Obic7ExportMasterService
     Rails.logger.info "Login action performed."
   end
 
-  def perform_export_customer
+  def perform_export_master(bunrui_name, teigi_name)
     # 不動産共通メニュー というラベルを含む、classがpItemのdivタグを取得
 
     original_window = @driver.window_handle
@@ -138,12 +147,12 @@ class Obic7ExportMasterService
     export_master_window = @driver.window_handle   
 
     bunrui_select = @driver.find_element(:name, "ctl00$mainArea$ddlBunrui")
-    bunrui_select.find_element(:xpath, "//option[contains(text(), '【賃貸住宅管理】顧客登録')]").click
+    bunrui_select.find_element(:xpath, "//option[contains(text(), '#{bunrui_name}')]").click
 
     sleep(1)
 
     teigi_select = @driver.find_element(:name, "ctl00$mainArea$ddlTeigiName")
-    teigi_select.find_element(:xpath, "//option[contains(text(), '顧客基本情報出力定義')]").click
+    teigi_select.find_element(:xpath, "//option[contains(text(), '#{teigi_name}')]").click
 
     sleep(1)
 

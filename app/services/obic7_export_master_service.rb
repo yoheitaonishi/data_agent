@@ -188,9 +188,16 @@ class Obic7ExportMasterService
 
     Rails.logger.info "Successfully downloaded: #{downloaded_file}"
     
-    # Read CSV content
-    # Assuming the file might be in Shift_JIS as is common with Japanese systems
-    csv_content = File.read(downloaded_file, encoding: 'Shift_JIS:UTF-8', invalid: :replace, undef: :replace, replace: '?')
-    csv_rows = CSV.parse(csv_content, headers: true)
+    if @agentic_job_id
+      job = AgenticJob.find(@agentic_job_id)
+      
+      if bunrui_name.include?("顧客登録")
+        job.customer_master.attach(io: File.open(downloaded_file), filename: File.basename(downloaded_file), content_type: 'text/csv')
+        Rails.logger.info "Attached customer master CSV to AgenticJob #{@agentic_job_id}"
+      elsif bunrui_name.include?("物件登録")
+        job.property_master.attach(io: File.open(downloaded_file), filename: File.basename(downloaded_file), content_type: 'text/csv')
+        Rails.logger.info "Attached property master CSV to AgenticJob #{@agentic_job_id}"
+      end
+    end
   end
 end

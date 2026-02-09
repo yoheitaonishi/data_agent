@@ -28,6 +28,14 @@ class ExecuteAgenticWorkflowJob < ApplicationJob
     begin
       customer_importer = Obic7CsvImportService.new(agentic_job_id: job.id)
       customer_importer.execute_customer_csv_import
+
+      # 顧客マスタを保存
+      customer_exporter = Obic7ExportMasterService.new(agentic_job_id: job.id)
+      customer_exporter.execute_export_customer
+
+      # 物件マスタを保存
+      property_exporter = Obic7ExportMasterService.new(agentic_job_id: job.id)
+      property_exporter.execute_export_properties
     rescue => e
       job.update!(
         status: AgenticJob::STATUS_ERROR,

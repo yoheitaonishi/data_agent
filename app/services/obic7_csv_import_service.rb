@@ -14,18 +14,21 @@ class Obic7CsvImportService
     @wait = nil
   end
 
-  def execute
+  def execute_customer_csv_import
     setup_driver
     login
     perform_import_customer  
+  ensure
     cleanup_driver
-    
+    @temp_customer_csv&.close!
+  end
+
+  def execute_contract_csv_import
     setup_driver
     login
     perform_import_contract
   ensure
-    cleanup_driver
-    @temp_customer_csv&.close!
+    cleanup_driver    
     @temp_contract_csv&.close!
   end
 

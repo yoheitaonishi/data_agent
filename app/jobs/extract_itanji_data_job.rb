@@ -1,10 +1,12 @@
-class ScrapeContractDataJob < ApplicationJob
+class ExtractItanjiDataJob < ApplicationJob
   queue_as :default
 
   def perform(agentic_job_id)
     job = AgenticJob.find(agentic_job_id)
 
     begin
+      job.update!(status: AgenticJob::STATUS_PROCESSING, step: :itanji_data_extract)
+
       scraper = MoushikomiScraperService.new
       result = scraper.scrape_contract_data(agentic_job_id: job.id)
 

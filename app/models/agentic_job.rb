@@ -13,6 +13,12 @@ class AgenticJob < ApplicationRecord
   STATUS_WARNING = "warning"
   STATUS_ERROR = "error"
 
+  enum :step, {
+    itanji_data_extract: 0,
+    obic7_customer_import: 1,
+    obic_7_contract_import: 2
+  }
+
   # Create contract data scraping job record
   def self.create_scraping_job
     create!(

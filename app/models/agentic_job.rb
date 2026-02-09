@@ -2,6 +2,8 @@ class AgenticJob < ApplicationRecord
   has_many :contract_entries, dependent: :nullify
   has_one_attached :customers
   has_one_attached :contracts
+  has_one_attached :customer_master
+  has_one_attached :property_master
 
   # System names
   SOURCE_SYSTEM_ITANDI = "イタンジ"

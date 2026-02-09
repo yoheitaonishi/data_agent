@@ -37,10 +37,24 @@
 
             <!-- Contract Entries -->
             <% if @agentic_job.customers.attached? %>
-                <div class="flex justify-end mb-4">
+                <div class="flex justify-end mb-4 space-x-2">
                     <%= link_to rails_blob_path(@agentic_job.customers, disposition: "attachment"), class: "inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" do %>
                         <i data-lucide="download" class="w-5 h-5 mr-2 text-gray-500"></i>
                         Customers CSV
+                    <% end %>
+
+                    <% if @agentic_job.customer_master.attached? %>
+                      <%= link_to rails_blob_path(@agentic_job.customer_master, disposition: "attachment"), class: "inline-flex items-center px-4 py-2 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" do %>
+                          <i data-lucide="download" class="w-5 h-5 mr-2 text-blue-500"></i>
+                          Customer Master CSV
+                      <% end %>
+                    <% end %>
+
+                    <% if @agentic_job.property_master.attached? %>
+                      <%= link_to rails_blob_path(@agentic_job.property_master, disposition: "attachment"), class: "inline-flex items-center px-4 py-2 border border-green-300 shadow-sm text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500" do %>
+                          <i data-lucide="download" class="w-5 h-5 mr-2 text-green-500"></i>
+                          Property Master CSV
+                      <% end %>
                     <% end %>
                 </div>
             <% end %>

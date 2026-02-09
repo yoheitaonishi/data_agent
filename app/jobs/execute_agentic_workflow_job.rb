@@ -47,6 +47,8 @@ class ExecuteAgenticWorkflowJob < ApplicationJob
 
     # === Step 3: OBIC7 Contract Import ===
     job.update!(step: :obic_7_contract_import)
+
+
     
     begin
       contract_importer = Obic7CsvImportService.new(agentic_job_id: job.id)

@@ -197,13 +197,8 @@ class Obic7ScraperService
     Rails.logger.info "Starting master data export process..."
 
     begin
-      # Navigate to data output page
-      data_output_url = "https://metawn.obic7.obicnet.ne.jp/IOWeb30Sat/Pages/Input/DataOutput.aspx?cgid=c641f899-02df-d789-c8b9-82559e224560&gid=ddb2bb3c-64f0-4ce3-a4a9-7c3687bed2c8&pid=ZAE0000092"
-      Rails.logger.info "Navigating to data output page: #{data_output_url}"
-      @driver.get(data_output_url)
-
-      # Wait for page to load
-      sleep 3
+      # Navigate through menu: 不動産共通メニュー -> マスタ入出力 -> マスタ出力
+      navigate_to_master_io_menu
 
       # Export customer codes (顧客コード)
       Rails.logger.info "Exporting customer codes..."
@@ -212,9 +207,9 @@ class Obic7ScraperService
         definition_name: "顧客基本情報出力定義"
       )
 
-      # Navigate back to data output page
-      Rails.logger.info "Navigating back to data output page..."
-      @driver.get(data_output_url)
+      # Navigate back to master output page
+      Rails.logger.info "Navigating back to master output page..."
+      navigate_to_master_io_menu
       sleep 3
 
       # Export property codes (物件コード)
@@ -227,7 +222,7 @@ class Obic7ScraperService
       Rails.logger.info "Master data export completed successfully"
 
       # Keep browser open for inspection
-      sleep 5
+      sleep 10
 
     rescue => e
       Rails.logger.error "Error during master data export: #{e.message}"
@@ -235,6 +230,114 @@ class Obic7ScraperService
       Rails.logger.error e.backtrace.join("\n")
       raise
     end
+  end
+
+  def navigate_to_master_io_menu
+    Rails.logger.info "Navigating to Master I/O menu via menu selection..."
+
+    begin
+      # Step 1: Click "不動産共通メニュー"
+      click_menu_item("不動産共通メニュー")
+      sleep 3
+
+      # Step 2: Click "マスタ入出力"
+      click_menu_item("マスタ入出力")
+      sleep 3
+
+      # Step 3: Click "マスタ出力"
+      click_menu_item("マスタ出力")
+      sleep 3
+
+      Rails.logger.info "Successfully navigated to Master Output menu"
+
+    rescue => e
+      Rails.logger.error "Error navigating to Master I/O menu: #{e.message}"
+      Rails.logger.error "Current URL: #{@driver.current_url}"
+      Rails.logger.error e.backtrace.join("\n")
+
+      # Try to switch back to default content
+      begin
+        @driver.switch_to.default_content
+      rescue
+        # Ignore errors when switching back
+      end
+
+      raise
+    end
+  end
+
+  def click_menu_item(menu_text)
+    Rails.logger.info "Looking for '#{menu_text}' menu item..."
+
+    # Check for iframes
+    iframes = @driver.find_elements(tag_name: "iframe")
+    Rails.logger.info "Found #{iframes.length} iframe(s)"
+
+    menu_item = nil
+    menu_selectors = [
+      { type: :xpath, value: "//a[contains(text(), '#{menu_text}')]" },
+      { type: :xpath, value: "//*[contains(text(), '#{menu_text}')]" },
+      { type: :link_text, value: menu_text }
+    ]
+
+    # Try in main content first
+    menu_selectors.each do |selector|
+      begin
+        Rails.logger.info "Trying selector: #{selector[:type]} = #{selector[:value]}"
+        menu_item = @driver.find_element(selector[:type], selector[:value])
+        if menu_item
+          Rails.logger.info "Found '#{menu_text}' with #{selector[:type]}"
+          break
+        end
+      rescue Selenium::WebDriver::Error::NoSuchElementError
+        next
+      end
+    end
+
+    # If not found, try switching to iframes
+    if !menu_item && iframes.any?
+      iframes.each_with_index do |iframe, i|
+        begin
+          Rails.logger.info "Switching to iframe #{i}..."
+          @driver.switch_to.frame(iframe)
+
+          menu_selectors.each do |selector|
+            begin
+              menu_item = @driver.find_element(selector[:type], selector[:value])
+              if menu_item
+                Rails.logger.info "Found '#{menu_text}' in iframe #{i}"
+                break
+              end
+            rescue Selenium::WebDriver::Error::NoSuchElementError
+              next
+            end
+          end
+
+          break if menu_item
+          @driver.switch_to.default_content
+        rescue => e
+          Rails.logger.warn "Error in iframe #{i}: #{e.message}"
+          @driver.switch_to.default_content
+        end
+      end
+    end
+
+    unless menu_item
+      Rails.logger.error "Could not find '#{menu_text}' menu item"
+      Rails.logger.error "Available links:"
+      links = @driver.find_elements(tag_name: "a")
+      links.first(20).each_with_index do |link, i|
+        Rails.logger.error "Link #{i}: #{link.text}"
+      end
+      raise "'#{menu_text}' menu item not found"
+    end
+
+    # Click the menu item
+    Rails.logger.info "Clicking '#{menu_text}'..."
+    safe_click(menu_item)
+
+    # Switch back to default content
+    @driver.switch_to.default_content
   end
 
   def export_data_by_category(category:, definition_name:)
@@ -252,56 +355,91 @@ class Obic7ScraperService
 
       sleep 2
 
-      # Find the radio button for the specified category and definition
-      Rails.logger.info "Looking for radio button with category: #{category} and definition: #{definition_name}"
+      # Find and select from category dropdown (分類)
+      Rails.logger.info "Looking for category dropdown (分類)..."
+      category_dropdown = nil
 
-      # Try multiple strategies to find the radio button
-      radio_button = nil
+      category_selectors = [
+        { type: :id, value: "ddlCategory" },
+        { type: :name, value: "ddlCategory" },
+        { type: :xpath, value: "//select[contains(@id, 'Category')]" },
+        { type: :xpath, value: "//select[contains(@name, 'Category')]" },
+        { type: :css, value: "select" }
+      ]
 
-      # Strategy 1: Find by text content nearby
-      begin
-        # Find text element containing the definition name
-        text_element = @wait.until do
-          @driver.find_element(xpath: "//*[contains(text(), '#{definition_name}')]")
-        end
-        Rails.logger.info "Found text element with definition name"
-
-        # Find the closest radio button (input[type='radio'])
-        radio_button = text_element.find_element(xpath: ".//preceding::input[@type='radio'][1] | .//following::input[@type='radio'][1] | .//ancestor::tr//input[@type='radio']")
-        Rails.logger.info "Found radio button near definition name"
-      rescue => e
-        Rails.logger.warn "Strategy 1 failed: #{e.message}"
-      end
-
-      # Strategy 2: Find all radio buttons and match by nearby text
-      unless radio_button
-        Rails.logger.info "Trying strategy 2: checking all radio buttons"
-        radio_buttons = @driver.find_elements(css: "input[type='radio']")
-        Rails.logger.info "Found #{radio_buttons.length} radio buttons"
-
-        radio_buttons.each_with_index do |rb, i|
-          # Get the parent row or container
-          parent = rb.find_element(xpath: "./ancestor::tr | ./ancestor::div[@class='row'] | ./ancestor::div[contains(@class, 'form-group')]")
-          parent_text = parent.text
-
-          Rails.logger.debug "Radio #{i}: Parent text: #{parent_text[0..100]}"
-
-          if parent_text.include?(category) && parent_text.include?(definition_name)
-            radio_button = rb
-            Rails.logger.info "Found matching radio button at index #{i}"
+      category_selectors.each do |selector|
+        begin
+          Rails.logger.info "Trying selector: #{selector[:type]} = #{selector[:value]}"
+          category_dropdown = @driver.find_element(selector[:type], selector[:value])
+          if category_dropdown
+            Rails.logger.info "Category dropdown found with #{selector[:type]}: #{selector[:value]}"
             break
           end
+        rescue Selenium::WebDriver::Error::NoSuchElementError
+          next
         end
       end
 
-      unless radio_button
-        Rails.logger.error "Could not find radio button for #{category} - #{definition_name}"
-        raise "Radio button not found"
+      unless category_dropdown
+        Rails.logger.error "Could not find category dropdown"
+        # Log all select elements
+        selects = @driver.find_elements(tag_name: "select")
+        Rails.logger.error "Found #{selects.length} select elements:"
+        selects.each_with_index do |select, i|
+          Rails.logger.error "Select #{i}: id=#{select.attribute('id')}, name=#{select.attribute('name')}"
+        end
+        raise "Category dropdown not found"
       end
 
-      # Click the radio button
-      Rails.logger.info "Clicking radio button..."
-      safe_click(radio_button)
+      # Select category from dropdown
+      Rails.logger.info "Selecting category: #{category}"
+      select_category = Selenium::WebDriver::Support::Select.new(category_dropdown)
+      select_category.select_by(:text, category)
+      sleep 2 # Wait for definition dropdown to update
+
+      # Find and select from definition dropdown (定義名)
+      Rails.logger.info "Looking for definition dropdown (定義名)..."
+      definition_dropdown = nil
+
+      definition_selectors = [
+        { type: :id, value: "ddlDefinition" },
+        { type: :name, value: "ddlDefinition" },
+        { type: :xpath, value: "//select[contains(@id, 'Definition')]" },
+        { type: :xpath, value: "//select[contains(@name, 'Definition')]" }
+      ]
+
+      definition_selectors.each do |selector|
+        begin
+          Rails.logger.info "Trying selector: #{selector[:type]} = #{selector[:value]}"
+          definition_dropdown = @driver.find_element(selector[:type], selector[:value])
+          if definition_dropdown
+            Rails.logger.info "Definition dropdown found with #{selector[:type]}: #{selector[:value]}"
+            break
+          end
+        rescue Selenium::WebDriver::Error::NoSuchElementError
+          next
+        end
+      end
+
+      # If still not found, try finding the second select element
+      unless definition_dropdown
+        Rails.logger.info "Trying to find second select element..."
+        selects = @driver.find_elements(tag_name: "select")
+        if selects.length >= 2
+          definition_dropdown = selects[1]
+          Rails.logger.info "Using second select element as definition dropdown"
+        end
+      end
+
+      unless definition_dropdown
+        Rails.logger.error "Could not find definition dropdown"
+        raise "Definition dropdown not found"
+      end
+
+      # Select definition from dropdown
+      Rails.logger.info "Selecting definition: #{definition_name}"
+      select_definition = Selenium::WebDriver::Support::Select.new(definition_dropdown)
+      select_definition.select_by(:text, definition_name)
       sleep 1
 
       # Find and click the output button (出力ボタン)
@@ -312,6 +450,7 @@ class Obic7ScraperService
         { type: :xpath, value: "//input[@type='submit' and contains(@value, '出力')]" },
         { type: :xpath, value: "//button[contains(text(), '出力')]" },
         { type: :xpath, value: "//input[@type='button' and contains(@value, '出力')]" },
+        { type: :id, value: "btnOutput" },
         { type: :css, value: "input[type='submit']" },
         { type: :css, value: "button[type='submit']" }
       ]
@@ -331,6 +470,12 @@ class Obic7ScraperService
 
       unless output_button
         Rails.logger.error "Could not find output button"
+        # Log all buttons and inputs
+        buttons = @driver.find_elements(css: "button, input[type='button'], input[type='submit']")
+        Rails.logger.error "Found #{buttons.length} buttons/inputs:"
+        buttons.each_with_index do |btn, i|
+          Rails.logger.error "Button #{i}: type=#{btn.attribute('type')}, value=#{btn.attribute('value')}, text=#{btn.text}"
+        end
         raise "Output button not found"
       end
 

@@ -19,9 +19,6 @@ class ExecuteAgenticWorkflowJob < ApplicationJob
       return
     end
 
-    # Ensure Contract CSV is generated (Customer CSV is generated in scraper)
-    job.generate_contracts_csv
-
     # === Step 2: OBIC7 Customer Import ===
     job.update!(step: :obic7_customer_import)
     
@@ -36,6 +33,16 @@ class ExecuteAgenticWorkflowJob < ApplicationJob
       # 物件マスタを保存
       property_exporter = Obic7ExportMasterService.new(agentic_job_id: job.id)
       property_exporter.execute_export_properties
+
+      # 顧客マスタから顧客コードを取得する
+      # 直近に生成したcustomers_csvの取引先コードに顧客コードを利用するが
+      # 新しいレコードとなるように、また、登録レコードずつに連番になるようにする
+      job.generate_customers_csv
+
+      # 取得した物件マスタから物件名で物件を検索し物件コードを取得する
+      # contracts_csvの物件コードに利用する。契約者コードには直前で生成した顧客コードを利用する
+      job.generate_contracts_csv
+
     rescue => e
       job.update!(
         status: AgenticJob::STATUS_ERROR,

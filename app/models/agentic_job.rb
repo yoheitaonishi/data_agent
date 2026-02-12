@@ -466,8 +466,8 @@ class AgenticJob < ApplicationRecord
     require 'csv'
     require 'nkf'
 
-    # 検索用に物件名を正規化（半角カタカナに変換）
-    normalized_search = NKF.nkf('-w -Z4', property_name.to_s).strip
+    # 検索用に物件名を正規化（半角カタカナに変換し、全角半角スペースを除去）
+    normalized_search = normalize_property_name(property_name)
 
     begin
       property_master.download do |file_content|
@@ -476,10 +476,11 @@ class AgenticJob < ApplicationRecord
 
         CSV.parse(utf8_content, headers: true) do |row|
           # 物件正式名と物件名の両方で検索
-          property_formal = NKF.nkf('-w -Z4', row['物件正式名'].to_s).strip
-          property_short = NKF.nkf('-w -Z4', row['物件名'].to_s).strip
+          property_formal = normalize_property_name(row['物件正式名'].to_s)
+          property_short = normalize_property_name(row['物件名'].to_s)
 
           if property_formal == normalized_search || property_short == normalized_search
+            Rails.logger.info "Property found: #{property_name} => #{row['物件コード']}"
             return row['物件コード']
           end
         end
@@ -490,7 +491,23 @@ class AgenticJob < ApplicationRecord
     end
 
     # 見つからない場合
-    Rails.logger.warn "Property not found in master: #{property_name}"
+    Rails.logger.warn "Property not found in master: #{property_name} (normalized: #{normalized_search})"
     nil
+  end
+
+  def normalize_property_name(name)
+    # 物件名を正規化: 半角カタカナに統一、英数字は半角、スペース除去、記号統一
+    require 'nkf'
+    return '' if name.nil? || name.empty?
+
+    # 1. 全角カタカナ→半角カタカナ(-h1)、全角英数字→半角(-Z1)
+    # -w: UTF-8出力, -h1: 全角カタカナ→半角カタカナ, -Z1: 全角英数→半角
+    normalized = NKF.nkf('-w -h1 -Z1', name.to_s)
+    # 2. 全角半角スペースを除去
+    normalized = normalized.gsub(/[\s　]+/, '')
+    # 3. 全角中点を半角中点に統一
+    normalized = normalized.tr('・', '･')
+
+    normalized.strip
   end
 end

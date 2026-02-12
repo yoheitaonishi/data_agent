@@ -71,6 +71,9 @@ class AgenticJob < ApplicationRecord
   def generate_customers_csv
     require 'csv'
 
+    # 顧客マスタから最大の顧客コードを取得
+    max_customer_code = get_max_customer_code_from_master
+
     # 基本情報ファイル用のCSV生成（todo.mdの1種類目）
     csv_body = CSV.generate(encoding: "UTF-8", force_quotes: false, row_sep: "\r\n") do |csv|
       # ヘッダー行（日本語）
@@ -109,7 +112,12 @@ class AgenticJob < ApplicationRecord
         口座コード バーチャル口座番号 回収月区分 入金期日 休日処理区分 法人番号
       ]
 
-      contract_entries.each do |entry|
+      contract_entries.each_with_index do |entry, index|
+        # 顧客コードを連番で生成
+        customer_code = format("%010d", max_customer_code + index + 1)
+
+        # 顧客コードをcontract_entryに保存（後でcontracts_csvで使用）
+        entry.update_column(:customer_code, customer_code)
         # 物件名と部屋番号を分離
         property_only = extract_property_name_only(entry.property_name)
         room_number = entry.room_id.presence || extract_room_from_property_name(entry.property_name)
@@ -133,7 +141,7 @@ class AgenticJob < ApplicationRecord
         emergency_postal_parts = split_postal_code(entry.emergency_contact_postal_code)
 
         csv << [
-          "9999999999",  # 取引先コード（固定）
+          customer_code,  # 取引先コード（顧客マスタから連番で生成）
           format_name_for_customer(entry.applicant_name, entry.applicant_name_kana),  # 顧客正式名
           "1",  # 顧客敬称コード（固定）
           format_kana_name(entry.applicant_name_kana),  # 顧客カナ名
@@ -241,6 +249,10 @@ class AgenticJob < ApplicationRecord
       ]
 
       contract_entries.each do |entry|
+        # 物件マスタから物件コードを取得
+        property_only = extract_property_name_only(entry.property_name)
+        property_code = get_property_code_from_master(property_only)
+
         # 契約日から各種日付を計算
         move_in = entry.move_in_date || entry.contract_start_date || entry.application_date&.to_date
         contract_date = move_in
@@ -266,13 +278,13 @@ class AgenticJob < ApplicationRecord
 
         csv << [
           "999999999999",  # 受入元契約番号（固定）
-          entry.property_code,  # 物件コード（マスタから取得）
+          property_code,  # 物件コード（マスタから取得）
           room_number,  # 部屋番号
-          nil,  # 契約者コード（空欄）
+          entry.customer_code,  # 契約者コード（直前で生成した顧客コード）
           "0",  # 契約者請求書発行区分（固定）
           "1",  # 契約者書類送付先コード（固定）
           "0",  # 契約者申込金額（固定）
-          nil,  # 入居者コード（契約者コードと同じ = 空）
+          entry.customer_code,  # 入居者コード（契約者コードと同じ）
           nil, "0", "1", nil,  # 入居者情報
           nil, nil, nil, nil, nil, nil, nil, nil,  # 保証人情報（不要）
           nil,  # 来店日
@@ -419,5 +431,83 @@ class AgenticJob < ApplicationRecord
 
   def stringify_or_nil(value)
     value.nil? ? nil : value.to_s
+  end
+
+  def get_max_customer_code_from_master
+    # 顧客マスタから最大の顧客コードを取得
+    return 0 unless customer_master.attached?
+
+    require 'csv'
+    max_code = 0
+
+    begin
+      customer_master.download do |file_content|
+        # Shift-JISからUTF-8に変換
+        utf8_content = file_content.force_encoding('Shift_JIS').encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+
+        CSV.parse(utf8_content, headers: true) do |row|
+          code = row['顧客コード'].to_i
+          max_code = code if code > max_code
+        end
+      end
+    rescue => e
+      Rails.logger.error "Error reading customer master: #{e.message}"
+      return 0
+    end
+
+    max_code
+  end
+
+  def get_property_code_from_master(property_name)
+    # 物件マスタから物件名で検索して物件コードを取得
+    return nil unless property_master.attached?
+    return nil if property_name.nil? || property_name.empty?
+
+    require 'csv'
+    require 'nkf'
+
+    # 検索用に物件名を正規化（半角カタカナに変換し、全角半角スペースを除去）
+    normalized_search = normalize_property_name(property_name)
+
+    begin
+      property_master.download do |file_content|
+        # Shift-JISからUTF-8に変換
+        utf8_content = file_content.force_encoding('Shift_JIS').encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+
+        CSV.parse(utf8_content, headers: true) do |row|
+          # 物件正式名と物件名の両方で検索
+          property_formal = normalize_property_name(row['物件正式名'].to_s)
+          property_short = normalize_property_name(row['物件名'].to_s)
+
+          if property_formal == normalized_search || property_short == normalized_search
+            Rails.logger.info "Property found: #{property_name} => #{row['物件コード']}"
+            return row['物件コード']
+          end
+        end
+      end
+    rescue => e
+      Rails.logger.error "Error reading property master: #{e.message}"
+      return nil
+    end
+
+    # 見つからない場合
+    Rails.logger.warn "Property not found in master: #{property_name} (normalized: #{normalized_search})"
+    nil
+  end
+
+  def normalize_property_name(name)
+    # 物件名を正規化: 半角カタカナに統一、英数字は半角、スペース除去、記号統一
+    require 'nkf'
+    return '' if name.nil? || name.empty?
+
+    # 1. 全角カタカナ→半角カタカナ(-h1)、全角英数字→半角(-Z1)
+    # -w: UTF-8出力, -h1: 全角カタカナ→半角カタカナ, -Z1: 全角英数→半角
+    normalized = NKF.nkf('-w -h1 -Z1', name.to_s)
+    # 2. 全角半角スペースを除去
+    normalized = normalized.gsub(/[\s　]+/, '')
+    # 3. 全角中点を半角中点に統一
+    normalized = normalized.tr('・', '･')
+
+    normalized.strip
   end
 end
